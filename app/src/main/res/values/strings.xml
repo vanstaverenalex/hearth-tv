@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hearth TV</string>
+    <string name="home_watcher_label">Hearth home screen</string>
+    <string name="home_watcher_desc">Opens Hearth whenever the Home button is pressed or the TV turns on.</string>
+</resources>

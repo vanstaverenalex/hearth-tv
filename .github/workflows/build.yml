@@ -25,19 +25,7 @@ jobs:
         with:
           gradle-version: "8.11.1"
 
-      - name: Load signing key
-        env:
-          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
-        run: |
-          if [ -z "$KEYSTORE_B64" ]; then
-            echo "::error::KEYSTORE_B64 secret is missing"; exit 1
-          fi
-          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/hearth-tv.jks"
-          echo "HEARTH_KEYSTORE=$RUNNER_TEMP/hearth-tv.jks" >> "$GITHUB_ENV"
-
       - name: Build APK
-        env:
-          HEARTH_KEY_PASS: ${{ secrets.KEY_PASS }}
         run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: Rename APK

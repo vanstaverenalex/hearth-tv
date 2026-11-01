@@ -2,6 +2,7 @@
 build/
 local.properties
 *.jks
+!keystore/hearth-tv.jks
 *.keystore
 *.apk
 .idea/

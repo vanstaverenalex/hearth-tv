@@ -17,7 +17,7 @@ data class AppEntry(
 
 object Specials {
     const val SETTINGS = "__settings__"
-    const val HIDDEN = "__hidden__"
+    const val FIRE_HOME = "__firehome__"
 }
 
 /** Finds installed apps and caches their artwork so scrolling stays smooth. */
@@ -81,25 +81,25 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("seeded", false)
         set(value) { sp.edit().putBoolean("seeded", value).apply() }
 
-    /** First run: pin the usual streaming apps if they're installed. */
+    /** Theme: "dark", "light" or "auto". */
+    var mode: String
+        get() = sp.getString("mode", "auto")!!
+        set(value) { sp.edit().putString("mode", value).apply() }
+
+    /** First run: pin the family's main apps first, then other common ones. */
     fun seedFavorites(installed: Collection<String>) {
         if (seeded) return
         val common = listOf(
-            "com.netflix.ninja",                 // Netflix
+            "com.hulu.plus",                     // Hulu
+            "com.disney.disneyplus",             // Disney+
+            "com.tubitv",                        // Tubi
             "com.amazon.firetv.youtube",         // YouTube
             "com.google.android.youtube.tv",     // YouTube (Android TV build)
-            "com.amazon.firetv.youtube.tv",      // YouTube TV
-            "com.disney.disneyplus",             // Disney+
-            "com.hulu.plus",                     // Hulu
+            "com.netflix.ninja",                 // Netflix
             "com.wbd.stream",                    // Max
-            "com.hbo.hbonow",                    // Max (older)
             "com.amazon.avod",                   // Prime Video
-            "com.peacocktv.peacockandroid",      // Peacock
-            "com.cbs.ott",                       // Paramount+
-            "com.plexapp.android",               // Plex
-            "com.spotify.tv.android",            // Spotify
         )
-        favorites = common.filter { it in installed }.take(8).toMutableList()
+        favorites = common.filter { it in installed }.take(5).toMutableList()
         seeded = true
     }
 }

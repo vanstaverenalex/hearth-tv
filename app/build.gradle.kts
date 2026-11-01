@@ -19,11 +19,11 @@ android {
 
     signingConfigs {
         create("release") {
-            // Same key every build, so new versions install over old ones.
-            storeFile = file(System.getenv("HEARTH_KEYSTORE") ?: "../keystore/hearth-tv.jks")
-            storePassword = System.getenv("HEARTH_KEY_PASS") ?: "hearthtv"
+            // Kept in the repo so every build installs over the last one (sideload-only app).
+            storeFile = file("../keystore/hearth-tv.jks")
+            storePassword = rootProject.file("keystore/password.txt").readText().trim()
             keyAlias = "hearth"
-            keyPassword = System.getenv("HEARTH_KEY_PASS") ?: "hearthtv"
+            keyPassword = rootProject.file("keystore/password.txt").readText().trim()
         }
     }
 
@@ -45,4 +45,5 @@ android {
 
 dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.core:core:1.13.1")
 }

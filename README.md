@@ -19,3 +19,8 @@ A fast, ad-free home screen for Fire TV smart TVs (Fire OS). Big clock, local we
 ## How it builds
 
 Every push to `main` builds a signed APK on GitHub Actions and publishes it as the latest release. The signing key lives in the `KEYSTORE_B64` and `KEY_PASS` repo secrets so every version installs over the last one.
+
+## Credits
+
+- Fonts: Fraunces and Manrope, SIL Open Font License 1.1.
+- Weather: Open-Meteo. Live TV listings (coming): TVmaze, CC BY-SA 4.0.
