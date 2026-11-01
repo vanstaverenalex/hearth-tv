@@ -1,3 +1,12 @@
 {
-  "clips": []
+  "_about": "Live backgrounds for Hearth TV. mood: day (light mode), night (dark mode) or any. All clips are free to use under the Pexels license (pexels.com/license). Each TV rotates to a new clip daily and keeps at most two on disk.",
+  "clips": [
+    { "id": "forest-sun-rays",   "mood": "day",   "url": "https://videos.pexels.com/video-files/5623817/5623817-uhd_3840_2160_24fps.mp4",  "source": "https://www.pexels.com/video/trees-in-a-forest-against-rays-of-sunlight-5623817/" },
+    { "id": "still-lake",        "mood": "day",   "url": "https://videos.pexels.com/video-files/5795170/5795170-uhd_3840_2160_30fps.mp4",  "source": "https://www.pexels.com/video/a-footage-of-a-lake-5795170/" },
+    { "id": "snowy-pines",       "mood": "day",   "url": "https://videos.pexels.com/video-files/20663724/20663724-uhd_3840_2160_24fps.mp4", "source": "https://www.pexels.com/video/two-winter-coniferous-trees-covered-in-snow-20663724/" },
+    { "id": "golden-hour-peaks", "mood": "night", "url": "https://videos.pexels.com/video-files/15007860/15007860-uhd_3840_2160_30fps.mp4", "source": "https://www.pexels.com/video/silhouette-of-mountains-during-golden-hour-15007860/" },
+    { "id": "sunset-lake",       "mood": "night", "url": "https://videos.pexels.com/video-files/14074108/14074108-uhd_3840_2160_30fps.mp4", "source": "https://www.pexels.com/video/sunset-over-lake-14074108/" },
+    { "id": "milky-way-lake",    "mood": "night", "url": "https://videos.pexels.com/video-files/17808869/17808869-uhd_3840_2160_30fps.mp4", "source": "https://www.pexels.com/video/the-milky-way-is-seen-in-the-sky-above-a-lake-17808869/" },
+    { "id": "starry-night",      "mood": "night", "url": "https://videos.pexels.com/video-files/11773126/11773126-uhd_3840_2160_25fps.mp4", "source": "https://www.pexels.com/video/time-lapse-of-a-starry-night-sky-11773126/" }
+  ]
 }
