@@ -34,8 +34,8 @@ class AppAdapter(
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_app, parent, false)
         val h = Holder(view)
         val d = parent.resources.displayMetrics.density
-        val w = ((if (large) 208 else 160) * d).toInt()
-        val ht = ((if (large) 117 else 90) * d).toInt()
+        val w = ((if (large) 192 else 150) * d).toInt()
+        val ht = ((if (large) 108 else 84) * d).toInt()
         h.tile.layoutParams = h.tile.layoutParams.apply { width = w; height = ht }
         h.label.layoutParams = h.label.layoutParams.apply { width = w }
 

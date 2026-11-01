@@ -8,8 +8,8 @@
     android:clipToPadding="false"
     android:paddingLeft="56dp"
     android:paddingRight="56dp"
-    android:paddingTop="30dp"
-    android:paddingBottom="16dp">
+    android:paddingTop="27dp"
+    android:paddingBottom="12dp">
 
     <!-- Header: greeting + clock on the left, weather on the right -->
     <LinearLayout
@@ -42,17 +42,17 @@
                     android:fontFamily="sans-serif-light"
                     android:includeFontPadding="false"
                     android:textColor="@color/text"
-                    android:textSize="84sp" />
+                    android:textSize="64sp" />
 
                 <TextView
                     android:id="@+id/ampm"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginLeft="8dp"
-                    android:layout_marginBottom="12dp"
+                    android:layout_marginBottom="9dp"
                     android:fontFamily="sans-serif-medium"
                     android:textColor="@color/text_dim"
-                    android:textSize="22sp" />
+                    android:textSize="20sp" />
             </LinearLayout>
 
             <TextView
@@ -61,7 +61,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
                 android:textColor="@color/text_dim"
-                android:textSize="20sp" />
+                android:textSize="18sp" />
         </LinearLayout>
 
         <LinearLayout
@@ -83,7 +83,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginRight="12dp"
-                    android:textSize="40sp" />
+                    android:textSize="32sp" />
 
                 <TextView
                     android:id="@+id/weatherTemp"
@@ -92,7 +92,7 @@
                     android:fontFamily="sans-serif-light"
                     android:includeFontPadding="false"
                     android:textColor="@color/text"
-                    android:textSize="60sp" />
+                    android:textSize="48sp" />
             </LinearLayout>
 
             <TextView
@@ -116,7 +116,7 @@
     <TextView
         android:id="@+id/favLabel"
         style="@style/SectionLabel"
-        android:layout_marginTop="22dp"
+        android:layout_marginTop="16dp"
         android:text="Favorites" />
 
     <androidx.recyclerview.widget.RecyclerView
@@ -129,14 +129,14 @@
         android:clipToPadding="false"
         android:overScrollMode="never"
         android:paddingLeft="12dp"
-        android:paddingTop="10dp"
+        android:paddingTop="6dp"
         android:paddingRight="12dp"
-        android:paddingBottom="10dp" />
+        android:paddingBottom="6dp" />
 
     <!-- All apps grid -->
     <TextView
         style="@style/SectionLabel"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="4dp"
         android:text="All apps" />
 
     <androidx.recyclerview.widget.RecyclerView
@@ -150,7 +150,7 @@
         android:clipToPadding="false"
         android:overScrollMode="never"
         android:paddingLeft="12dp"
-        android:paddingTop="10dp"
+        android:paddingTop="6dp"
         android:paddingRight="12dp"
         android:paddingBottom="24dp" />
 
@@ -161,5 +161,5 @@
         android:layout_gravity="center_horizontal"
         android:text="Press  ☰  on any app to pin, move, or hide it"
         android:textColor="@color/text_faint"
-        android:textSize="13sp" />
+        android:textSize="12sp" />
 </LinearLayout>
