@@ -13,14 +13,16 @@ A fast, ad-free home screen for Fire TV smart TVs (Fire OS). Big clock, local we
 ## Using it
 
 - **☰ (menu) button** on any app: add to favorites, move left/right, hide, app info.
-- Hidden apps live behind the **Hidden apps** tile at the end of the grid.
+- Hidden apps live in the **Hidden** tab of the Apps screen.
+- **Live TV** (dock): D-pad through the guide, OK to watch in Hulu, ☰ to pin a channel. Edit the lineup in `channels.json`.
+- Backgrounds: edit `backgrounds.json`.
 - Weather is set to Kalamazoo, MI — change `LAT`/`LON` in `Weather.kt`.
 
 ## How it builds
 
-Every push to `main` builds a signed APK on GitHub Actions and publishes it as the latest release. The signing key lives in the `KEYSTORE_B64` and `KEY_PASS` repo secrets so every version installs over the last one.
+Every push to `main` builds a signed APK on GitHub Actions and publishes it as the latest release. The signing key is kept in `keystore/` so every version installs over the last one.
 
 ## Credits
 
 - Fonts: Fraunces and Manrope, SIL Open Font License 1.1.
-- Weather: Open-Meteo. Live TV listings (coming): TVmaze, CC BY-SA 4.0.
+- Weather: Open-Meteo. Live TV listings: TVmaze (CC BY-SA 4.0); games: ESPN scoreboards. Backgrounds: Pexels.

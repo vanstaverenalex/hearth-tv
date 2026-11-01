@@ -46,6 +46,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".GuideActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode" />
+
         <service
             android:name=".HomeWatcher"
             android:exported="true"

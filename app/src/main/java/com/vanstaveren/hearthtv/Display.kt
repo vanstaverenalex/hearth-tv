@@ -71,7 +71,9 @@ object Display {
     /** Push the backlight to 0 (dark) or max (light). Returns a short status line. */
     fun applyBacklight(ctx: Context, dark: Boolean): String {
         val found = scan(ctx)
-        if (found.isEmpty()) return "No backlight setting found on this TV"
+        // Fire TV smart TVs (e.g. Fire OS 8) drive the panel backlight from screen_brightness (0-255).
+        val brightness = applyScreenBrightness(ctx, dark)
+        if (found.isEmpty()) return brightness ?: "No backlight setting found on this TV"
         if (!canWriteSecure(ctx)) return "Backlight found (${found.first().key}); needs one-time setup permission"
         var wrote = 0
         for (f in found) {
@@ -91,6 +93,22 @@ object Display {
             }
         }
         return if (wrote > 0) "Backlight set to ${if (dark) "0" else "100"}" else "Couldn't change backlight"
+    }
+
+    private fun applyScreenBrightness(ctx: Context, dark: Boolean): String? {
+        val cr = ctx.contentResolver
+        val current = try { Settings.System.getInt(cr, Settings.System.SCREEN_BRIGHTNESS) } catch (e: Exception) { return null }
+        if (!canWriteSecure(ctx) && !Settings.System.canWrite(ctx)) return "Screen brightness found ($current); needs setup permission"
+        val target = if (dark) 0 else 255
+        return try {
+            Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+            Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, target)
+            Log.i(TAG, "screen_brightness $current -> $target")
+            "Brightness set to $target"
+        } catch (e: Exception) {
+            Log.w(TAG, "screen_brightness failed: ${e.message}")
+            null
+        }
     }
 
     fun homeTakeoverOn(ctx: Context): Boolean {

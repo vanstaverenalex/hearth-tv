@@ -208,7 +208,7 @@ class MainActivity : Activity() {
         dockDivider = View(this)
         dock.addView(dockDivider, LinearLayout.LayoutParams(dpi(1f), dpi(48f)).apply { leftMargin = dpi(7.5f); rightMargin = dpi(7.5f) })
         dock.addView(dockButton(R.drawable.ic_livetv, "Live TV") {
-            Toast.makeText(this, "The Live TV guide arrives in the next update", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, GuideActivity::class.java).putExtra(GuideActivity.EXTRA_DARK, dark))
         })
         dock.addView(dockButton(R.drawable.ic_apps, "Apps") { openLibrary() })
         root.addView(dock, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
@@ -553,7 +553,7 @@ class MainActivity : Activity() {
                 val lines = ArrayList<GlassMenu.Item>()
                 lines += GlassMenu.Item(R.drawable.ic_network, if (home) "Home button: Hearth ✓" else "Home button: not set up yet") {}
                 lines += GlassMenu.Item(R.drawable.ic_sun,
-                    if (found.isEmpty()) "Backlight: no control found" else "Backlight: ${found.first().key}${if (write) " ✓" else " (needs setup)"}") {}
+                    if (found.isEmpty()) "Backlight: via screen brightness${if (write) " ✓" else " (needs setup)"}" else "Backlight: ${found.first().key}${if (write) " ✓" else " (needs setup)"}") {}
                 lines += GlassMenu.Item(R.drawable.ic_info, "Version ${packageManager.getPackageInfo(packageName, 0).versionName}") {}
                 GlassMenu(this, dark, "Hearth setup", "This TV", null, lines).show()
             }
