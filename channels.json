@@ -30,6 +30,8 @@
     { "id": "foxnews", "name": "Fox News", "aliases": ["Fox News", "Fox News Channel", "FNC"],      "hulu": "" },
     { "id": "msnbc", "name": "MSNBC", "aliases": ["MSNBC", "MS NOW"],                               "hulu": "" },
     { "id": "syfy",  "name": "Syfy",  "aliases": ["Syfy", "SYFY"],                                  "hulu": "" },
-    { "id": "e",     "name": "E!",    "aliases": ["E!"],                                            "hulu": "" }
+    { "id": "e",     "name": "E!",    "aliases": ["E!"],                                            "hulu": "" },
+    { "id": "oxygen", "name": "Oxygen", "aliases": ["Oxygen", "Oxygen True Crime"],                 "hulu": "" },
+    { "id": "travel", "name": "Travel", "aliases": ["Travel Channel"],                              "hulu": "" }
   ]
 }
