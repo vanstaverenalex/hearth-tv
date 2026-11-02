@@ -3,7 +3,7 @@ name: Channel logos
 on:
   push:
     branches: [main]
-    paths: [channels.json, tools/logos.py, .github/workflows/logos.yml]
+    paths: [channels.json, tools/logos.py, tools/mono.py, .github/workflows/logos.yml]
   workflow_dispatch:
 
 permissions:
@@ -18,7 +18,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pillow
+      - run: pip install numpy
       - run: python tools/logos.py
+      - run: python tools/mono.py logos/color logos
       - name: Commit logos
         run: |
           git config user.name "Hearth logo bot"

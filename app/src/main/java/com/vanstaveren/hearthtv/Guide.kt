@@ -37,6 +37,8 @@ object Guide {
 
     data class GnLineup(val lineupId: String, val headendId: String, val postalCode: String, val device: String)
     @Volatile private var gnLineup: GnLineup? = null
+    /** Bumped in channels.json whenever the logo set is redrawn, so TVs fetch fresh copies. */
+    @Volatile var logoVersion = 1
 
     data class Category(val id: String, val name: String)
 
@@ -79,6 +81,7 @@ object Guide {
         return try {
             val root = JSONObject(text)
             val logoBase = root.optString("logos", "")
+            logoVersion = root.optInt("logoVersion", 1)
             root.optJSONObject("gracenote")?.let { g ->
                 gnLineup = GnLineup(g.getString("lineupId"), g.getString("headendId"), g.getString("postalCode"), g.optString("device", "X"))
             }

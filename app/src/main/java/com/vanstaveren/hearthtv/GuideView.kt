@@ -116,7 +116,7 @@ class GuideView(context: Context) : View(context) {
     }
 
     private fun floor30(t: Long) = t - (t % (30 * 60_000L))
-    private fun logoUrl(base: String) = base + if (dark) ".png" else "-light.png"
+    private fun logoUrl(base: String) = base + (if (dark) ".png" else "-light.png") + "?v=${Guide.logoVersion}"
 
     // ---------------------------------------------------------------- data
 
@@ -126,6 +126,15 @@ class GuideView(context: Context) : View(context) {
     }
 
     fun setFavorites(f: Set<String>) { favs = f; invalidate() }
+
+    /** Jump to what's on right now, at the top of the list (used every time the guide opens). */
+    fun resetToNow() {
+        cursor = System.currentTimeMillis()
+        row = 0
+        topS.snap(0.0)
+        winS.snap(floor30(cursor).toDouble())
+        retarget(animate = false)
+    }
 
     fun setCategory(cat: String, keepPosition: Boolean = false) {
         val keepId = if (keepPosition) channels.getOrNull(row)?.id else null

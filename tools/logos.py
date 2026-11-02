@@ -127,13 +127,14 @@ def fit(im):
 def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     data = json.load(open(os.path.join(root, "channels.json")))
-    out = os.path.join(root, "logos"); os.makedirs(out, exist_ok=True)
+    # Colour masters live in logos/color; tools/mono.py turns them into the one-colour marks the guide shows.
+    out = os.path.join(root, "logos", "color"); os.makedirs(out, exist_ok=True)
     only = set(sys.argv[1:])
     for ch in data["channels"]:
         cid, src = ch["id"], ch.get("logoSrc")
         if not src or (only and cid not in only):
             continue
-        done = all(os.path.exists(os.path.join(out, f)) for f in (f"{cid}.png", f"{cid}-light.png"))
+        done = os.path.exists(os.path.join(out, f"{cid}.png"))
         if done and not only and os.environ.get("FORCE") != "1":
             continue
         try:
@@ -143,7 +144,6 @@ def main():
             dark = im if plate else for_dark(im)
             light = im if plate else for_light(im)
             fit(dark).save(os.path.join(out, f"{cid}.png"), optimize=True)
-            fit(light).save(os.path.join(out, f"{cid}-light.png"), optimize=True)
             print(f"ok   {cid:12s} lum={lum:.2f} plate={plate}")
         except Exception as e:
             print(f"FAIL {cid:12s} {e}")

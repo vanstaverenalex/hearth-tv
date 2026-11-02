@@ -667,6 +667,7 @@ class MainActivity : Activity() {
             .split(",").filter { it.isNotBlank() }.toMutableSet()
 
     private fun openGuide() {
+        guideView.resetToNow()
         showOverlay("guide")
         if (lineup == null || System.currentTimeMillis() - (lineup?.loadedAt ?: 0L) > 20 * 60_000L) loadGuide()
         else guideView.post { guideView.requestFocus() }

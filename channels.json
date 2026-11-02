@@ -171,7 +171,7 @@
    "aliases": [
     "ESPNU"
    ],
-   "logoSrc": "https://i.imgur.com/HiBrysh.png",
+   "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/ESPN_U_logo.svg/960px-ESPN_U_logo.svg.png",
    "hulu": "https://www.hulu.com/watch/8a3b8267-7a37-4097-ab44-b3e0d7abed57",
    "gn": [
     "ESPNUHD",
@@ -292,7 +292,7 @@
     "MLB Network",
     "MLBN"
    ],
-   "logoSrc": "https://i.imgur.com/sA5V39D.png",
+   "logoSrc": "https://upload.wikimedia.org/wikipedia/en/thumb/a/ac/MLBNetworkLogo.svg/960px-MLBNetworkLogo.svg.png",
    "hulu": "https://www.hulu.com/watch/140f4c08-13f0-4100-b19d-bb66cc5b1c55",
    "gn": [
     "MLBHD",
@@ -1050,5 +1050,6 @@
   "headendId": "DITV563",
   "postalCode": "49009",
   "device": "X"
- }
+ },
+ "logoVersion": 2
 }
