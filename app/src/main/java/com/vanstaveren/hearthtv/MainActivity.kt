@@ -67,6 +67,14 @@ class MainActivity : Activity() {
 
     private lateinit var clockBlock: LinearLayout
     private lateinit var clockHalo: SoftHalo
+    private lateinit var santa: SantaSleigh
+    private var resumed = false
+    private val santaRun = object : Runnable {
+        override fun run() {
+            if (resumed && overlay == null && SantaSleigh.inSeason()) santa.fly()
+            ui.postDelayed(this, 120_000L)
+        }
+    }
     private lateinit var topRight: LinearLayout
     private lateinit var overlayDim: View
     private var overlay: String? = null            // "apps", "guide" or null
@@ -111,10 +119,15 @@ class MainActivity : Activity() {
         if (System.currentTimeMillis() - lastWeatherAt > 20 * 60_000) refreshWeather()
         applyTheme(force = true)
         video.resume()
+        resumed = true
+        ui.removeCallbacks(santaRun)
+        ui.postDelayed(santaRun, 10_000L)
     }
 
     override fun onPause() {
         super.onPause()
+        resumed = false
+        santa.stop()
         ui.removeCallbacksAndMessages(null)
         video.pause()
     }
@@ -135,6 +148,10 @@ class MainActivity : Activity() {
 
         scrim = View(this)
         root.addView(scrim, FrameLayout.LayoutParams(-1, -1))
+
+        // Holiday easter egg: Santa's sleigh across the very top (home screen only)
+        santa = SantaSleigh(this)
+        root.addView(santa, FrameLayout.LayoutParams(-1, dpi(46f), Gravity.TOP))
 
         // Soft halo behind the clock so it reads on any background
         clockHalo = SoftHalo(this)
@@ -560,6 +577,7 @@ class MainActivity : Activity() {
 
     private fun showOverlay(which: String) {
         overlay = which
+        santa.stop()
         val panel = if (which == "apps") library else guide
         val other = if (which == "apps") guide else library
         other.animate().cancel(); other.visibility = View.GONE
