@@ -3,7 +3,7 @@ name: Build Hearth TV
 on:
   push:
     branches: [main]
-    paths-ignore: [backgrounds.json, channels.json, README.md, tools/**, .github/workflows/backgrounds.yml]
+    paths-ignore: [backgrounds.json, channels.json, README.md, tools/**, logos/**, .github/workflows/backgrounds.yml, .github/workflows/logos.yml]
   workflow_dispatch:
 
 permissions:
