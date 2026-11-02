@@ -240,3 +240,34 @@ fun pulse(v: View): ValueAnimator = ValueAnimator.ofFloat(1f, 1.03f, 1f).apply {
     addUpdateListener { v.scaleX = it.animatedValue as Float; v.scaleY = it.animatedValue as Float }
     start()
 }
+
+/**
+ * A soft oval halo that sits behind text over the live video, so the clock stays readable
+ * on any background. Dark scrim in dark mode, a gentle white glow in light mode.
+ */
+class SoftHalo(context: Context) : View(context) {
+    var dark = true
+        set(v) { field = v; invalidate() }
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    init { isFocusable = false }
+
+    override fun onDraw(canvas: Canvas) {
+        val w = width.toFloat(); val h = height.toFloat()
+        if (w == 0f || h == 0f) return
+        val c = if (dark) Color.rgb(4, 6, 16) else Color.WHITE
+        val a = if (dark) 120 else 150
+        paint.shader = android.graphics.RadialGradient(
+            0f, 0f, 1f,
+            intArrayOf(Color.argb(a, Color.red(c), Color.green(c), Color.blue(c)),
+                Color.argb(a * 2 / 3, Color.red(c), Color.green(c), Color.blue(c)),
+                Color.argb(0, Color.red(c), Color.green(c), Color.blue(c))),
+            floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP
+        )
+        canvas.save()
+        canvas.translate(w / 2, h / 2)
+        canvas.scale(w / 2, h / 2)
+        canvas.drawCircle(0f, 0f, 1f, paint)
+        canvas.restore()
+    }
+}

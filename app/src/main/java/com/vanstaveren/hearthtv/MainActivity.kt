@@ -66,6 +66,7 @@ class MainActivity : Activity() {
     private val dockButtons = ArrayList<Pair<FrameLayout, ImageView>>()
 
     private lateinit var clockBlock: LinearLayout
+    private lateinit var clockHalo: SoftHalo
     private lateinit var topRight: LinearLayout
     private lateinit var overlayDim: View
     private var overlay: String? = null            // "apps", "guide" or null
@@ -135,8 +136,21 @@ class MainActivity : Activity() {
         scrim = View(this)
         root.addView(scrim, FrameLayout.LayoutParams(-1, -1))
 
+        // Soft halo behind the clock so it reads on any background
+        clockHalo = SoftHalo(this)
+        root.addView(clockHalo, FrameLayout.LayoutParams(dpi(10f), dpi(10f)))
+
         // Clock + weather, top-left
         clockBlock = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        clockBlock.addOnLayoutChangeListener { v, l, t, r, b, _, _, _, _ ->
+            val lp = clockHalo.layoutParams as FrameLayout.LayoutParams
+            val padX = dpi(110f); val padY = dpi(70f)
+            val nw = (r - l) + padX * 2; val nh = (b - t) + padY * 2
+            if (lp.width != nw || lp.height != nh || lp.leftMargin != l - padX || lp.topMargin != t - padY) {
+                lp.width = nw; lp.height = nh; lp.leftMargin = l - padX; lp.topMargin = t - padY
+                clockHalo.layoutParams = lp
+            }
+        }
         dateText = TextView(this).apply { style(14f, Fonts.body(this@MainActivity, 700), Color.WHITE, 0.08f); isAllCaps = true }
         clockText = TextView(this).apply {
             style(116f, Fonts.display(this@MainActivity, 300), Color.WHITE, -0.035f)
@@ -401,7 +415,11 @@ class MainActivity : Activity() {
         for (t in listOf(dateText, clockText, weatherTemp, weatherDesc, brandName)) t.setTextColor(ink)
         weatherRange.setTextColor(sub)
         brandSub.setTextColor(sub)
-        clockText.setShadowLayer(dp(24f), 0f, dp(3f), if (dark) Color.argb(64, 0, 0, 0) else Color.TRANSPARENT)
+        clockHalo.dark = dark
+        // A gentle shadow on the text itself, on top of the halo.
+        val shade = if (dark) Color.argb(110, 0, 0, 0) else Color.argb(170, 255, 255, 255)
+        clockText.setShadowLayer(dp(18f), 0f, dp(2f), shade)
+        for (t in listOf(dateText, weatherTemp, weatherDesc, weatherRange)) t.setShadowLayer(dp(8f), 0f, dp(1f), shade)
         weatherIcon.setColorFilter(ink)
 
         dockGlass.dark = dark; dockGlass.rebuild()
@@ -549,7 +567,7 @@ class MainActivity : Activity() {
         overlayDim.visibility = View.VISIBLE
         overlayDim.animate().alpha(1f).setDuration(280).setStartDelay(0).setInterpolator(Ease.out).withLayer().start()
         // The home screen steps back: light/dark switch, clock and dock all hide.
-        for ((v, dy) in listOf(dock to dp(26f), clockBlock to -dp(12f), topRight to -dp(12f))) {
+        for ((v, dy) in listOf(dock to dp(26f), clockBlock to -dp(12f), topRight to -dp(12f), clockHalo to -dp(12f))) {
             v.animate().cancel()
             v.animate().alpha(0f).translationY(dy).setDuration(200).setStartDelay(0).setInterpolator(Ease.out).withLayer()
                 .withEndAction { if (overlay != null) v.visibility = View.INVISIBLE }.start()
@@ -569,7 +587,7 @@ class MainActivity : Activity() {
         overlayDim.animate().cancel()
         overlayDim.animate().alpha(0f).setDuration(260).setInterpolator(Ease.inOut).withLayer()
             .withEndAction { if (overlay == null) overlayDim.visibility = View.GONE }.start()
-        for (v in listOf(dock, clockBlock, topRight)) {
+        for (v in listOf(dock, clockBlock, topRight, clockHalo)) {
             v.animate().cancel(); v.visibility = View.VISIBLE
             v.animate().alpha(1f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).withLayer().start()
         }
