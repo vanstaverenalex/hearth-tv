@@ -55,7 +55,11 @@ object Guide {
         val rich: Boolean = false,   // came from Gracenote (best data)
     )
 
-    data class Lineup(val channels: List<Channel>, val programs: Map<String, List<Program>>, val loadedAt: Long)
+    data class Lineup(
+        val channels: List<Channel>, val programs: Map<String, List<Program>>, val loadedAt: Long,
+        /** Human-readable source summary, e.g. "Gracenote · 61 of 68 channels". */
+        val source: String = "",
+    )
 
     private fun get(url: String): String {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -190,7 +194,7 @@ object Guide {
      * Full listings from Gracenote's public TV listings grid (the data behind most cable guides):
      * episode titles, descriptions, NEW/LIVE flags. Fetched directly by the TV, like a browser would.
      */
-    private fun gracenote(channels: List<Channel>, into: MutableMap<String, MutableList<Program>>): Int {
+    private fun gracenote(ctx: Context, channels: List<Channel>, into: MutableMap<String, MutableList<Program>>): Int {
         val g = gnLineup ?: return 0
         val byCall = HashMap<String, String>()
         channels.forEach { c -> c.gn.forEach { byCall.putIfAbsent(it, c.id) } }
@@ -202,15 +206,16 @@ object Guide {
             val url = "https://tvlistings.gracenote.com/api/grid?lineupId=${g.lineupId}&timespan=6&headendId=${g.headendId}" +
                 "&country=USA&timezone=&device=${g.device}&postalCode=${g.postalCode}&isOverride=true&time=${start + offset}" +
                 "&pref=16%2C128&userId=-&aid=orbebb&languagecode=en-us"
-            val json = try {
-                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10000; readTimeout = 20000
-                    setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 11; AFT) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
-                    setRequestProperty("Accept", "application/json")
-                }
-                conn.inputStream.bufferedReader().use { it.readText() }.also { conn.disconnect() }
-            } catch (e: Exception) { Log.w(TAG, "gracenote: ${e.message}"); break }
-            val arr = try { JSONObject(json).getJSONArray("channels") } catch (e: Exception) { break }
+            // Keep the last good copy of each window on disk: if a fetch fails, the guide still has full listings.
+            val cache = File(File(ctx.cacheDir, "guide").apply { mkdirs() }, "gracenote-${if (offset == 0L) "a" else "b"}.json")
+            var json = fetchGracenote(url)
+            if (json != null) try { cache.writeText(json) } catch (_: Exception) {}
+            else if (cache.exists() && System.currentTimeMillis() - cache.lastModified() < 20 * 3600_000L) {
+                json = try { cache.readText() } catch (_: Exception) { null }
+                Log.i(TAG, "gracenote: using cached window $offset")
+            }
+            if (json == null) continue
+            val arr = try { JSONObject(json).getJSONArray("channels") } catch (e: Exception) { null } ?: continue
             for (i in 0 until arr.length()) {
                 val c = arr.getJSONObject(i)
                 val id = byCall[c.optString("callSign")] ?: continue
@@ -243,10 +248,34 @@ object Guide {
         return count
     }
 
+    /** Fetch like the Gracenote web guide does (same headers), with one retry. */
+    private fun fetchGracenote(url: String): String? {
+        repeat(2) { attempt ->
+            try {
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10000; readTimeout = 20000
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+                    setRequestProperty("Accept", "application/json, text/plain, */*")
+                    setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+                    setRequestProperty("Referer", "https://tvlistings.gracenote.com/grid-affiliates.html?aid=orbebb")
+                    setRequestProperty("Origin", "https://tvlistings.gracenote.com")
+                }
+                val code = conn.responseCode
+                if (code == 200) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                    if (body.contains("\"channels\"")) return body
+                } else { Log.w(TAG, "gracenote HTTP $code"); conn.disconnect() }
+            } catch (e: Exception) { Log.w(TAG, "gracenote: ${e.message}") }
+            if (attempt == 0) Thread.sleep(1500)
+        }
+        return null
+    }
+
     fun load(ctx: Context): Lineup {
         val channels = loadChannels(ctx)
         val rich = HashMap<String, MutableList<Program>>()
-        val gnCount = try { gracenote(channels, rich) } catch (e: Exception) { 0 }
+        val gnCount = try { gracenote(ctx, channels, rich) } catch (e: Exception) { 0 }
         val raw = HashMap<String, MutableList<Program>>()
         val cal = Calendar.getInstance()
         val today = cal.time
@@ -286,7 +315,10 @@ object Guide {
             out[ch.id] = filled
         }
         Log.i(TAG, "guide: ${channels.size} channels, gracenote=$gnCount, fallback=${raw.values.sumOf { it.size }}")
-        return Lineup(channels, out, now)
+        val covered = channels.count { !rich[it.id].isNullOrEmpty() }
+        val source = if (covered > 0) "Gracenote · $covered of ${channels.size} channels" + (if (covered < channels.size) " · TVmaze · ESPN" else "")
+            else "Basic listings (TVmaze · ESPN) · Gracenote unreachable"
+        return Lineup(channels, out, now, source)
     }
 
     @Suppress("unused")

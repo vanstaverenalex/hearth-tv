@@ -4,15 +4,22 @@ import android.content.Context
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.SystemClock
 import android.view.View
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 /**
- * Grid that scrolls like tvOS: when focus moves near the top or bottom, the rows glide
- * (eased, ~320ms) so the selected row settles toward the middle instead of snapping to the edge.
+ * Grid that scrolls like tvOS: when focus nears the top or bottom, the rows glide on a spring so the
+ * selected row settles toward the middle. Repeated presses add to the same glide (no restart, no jolt),
+ * so holding the remote's arrow gives one continuous, fluid scroll.
  */
 class SmoothGridLayoutManager(context: Context, span: Int) : GridLayoutManager(context, span) {
+
+    private val spring = Spring(0.0, 15.0)
+    private var applied = 0
+    private var running = false
+    private var last = 0L
 
     override fun requestChildRectangleOnScreen(
         parent: RecyclerView, child: View, rect: Rect, immediate: Boolean, focusedChildVisible: Boolean,
@@ -20,9 +27,10 @@ class SmoothGridLayoutManager(context: Context, span: Int) : GridLayoutManager(c
         val parentTop = parent.paddingTop
         val parentBottom = parent.height - parent.paddingBottom
         val visible = parentBottom - parentTop
-        val childTop = child.top + rect.top - child.scrollY
+        // Where the child will be once the glide already in flight finishes.
+        val pending = (spring.target - spring.x).toInt()
+        val childTop = child.top + rect.top - child.scrollY - pending
         val childBottom = childTop + rect.height()
-        // Only move when the row leaves the comfortable middle band.
         val bandTop = parentTop + visible * 0.18f
         val bandBottom = parentBottom - visible * 0.18f
         val dy = when {
@@ -30,8 +38,22 @@ class SmoothGridLayoutManager(context: Context, span: Int) : GridLayoutManager(c
             childBottom > bandBottom -> (childBottom - (parentBottom - visible * 0.33f)).toInt()
             else -> 0
         }
-        if (dy == 0) return false
-        if (immediate) parent.scrollBy(0, dy) else parent.smoothScrollBy(0, dy, Ease.out, 320)
+        if (dy == 0) return pending != 0
+        if (immediate) { parent.scrollBy(0, dy); return true }
+        spring.target += dy
+        if (!running) {
+            running = true; last = SystemClock.uptimeMillis()
+            parent.postOnAnimation(object : Runnable {
+                override fun run() {
+                    val now = SystemClock.uptimeMillis()
+                    spring.step(((now - last).coerceIn(0, 50)) / 1000.0); last = now
+                    val want = Math.round(spring.x).toInt()
+                    if (want != applied) { parent.scrollBy(0, want - applied); applied = want }
+                    if (spring.moving && parent.isAttachedToWindow) parent.postOnAnimation(this)
+                    else { running = false; spring.snap(0.0); applied = 0 }
+                }
+            })
+        }
         return true
     }
 }

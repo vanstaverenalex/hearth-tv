@@ -242,32 +242,44 @@ fun pulse(v: View): ValueAnimator = ValueAnimator.ofFloat(1f, 1.03f, 1f).apply {
 }
 
 /**
- * A soft oval halo that sits behind text over the live video, so the clock stays readable
- * on any background. Dark scrim in dark mode, a gentle white glow in light mode.
+ * A soft oval halo that sits behind text over the live video, so it stays readable on any
+ * background. Rendered once in software into a small bitmap (TV GPUs draw large soft
+ * gradients with low precision, which shows up as hard edges), then scaled up smoothly.
  */
 class SoftHalo(context: Context) : View(context) {
     var dark = true
-        set(v) { field = v; invalidate() }
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        set(v) { if (field != v) { field = v; bmp = null; invalidate() } }
+    var strength = 1f
+    private var bmp: android.graphics.Bitmap? = null
+    private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val dst = android.graphics.Rect()
 
     init { isFocusable = false }
 
-    override fun onDraw(canvas: Canvas) {
-        val w = width.toFloat(); val h = height.toFloat()
-        if (w == 0f || h == 0f) return
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh); bmp = null
+    }
+
+    private fun render(): android.graphics.Bitmap {
+        val bw = 160; val bh = maxOf(16, (160f * height / maxOf(1, width)).toInt())
+        val b = android.graphics.Bitmap.createBitmap(bw, bh, android.graphics.Bitmap.Config.ARGB_8888)
         val c = if (dark) Color.rgb(4, 6, 16) else Color.WHITE
-        val a = if (dark) 120 else 150
-        paint.shader = android.graphics.RadialGradient(
-            0f, 0f, 1f,
-            intArrayOf(Color.argb(a, Color.red(c), Color.green(c), Color.blue(c)),
-                Color.argb(a * 2 / 3, Color.red(c), Color.green(c), Color.blue(c)),
-                Color.argb(0, Color.red(c), Color.green(c), Color.blue(c))),
-            floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP
-        )
-        canvas.save()
-        canvas.translate(w / 2, h / 2)
-        canvas.scale(w / 2, h / 2)
-        canvas.drawCircle(0f, 0f, 1f, paint)
-        canvas.restore()
+        val peak = ((if (dark) 125 else 150) * strength).toInt()
+        // Smooth, eased falloff that reaches exactly zero before the edge (no visible boundary).
+        for (y in 0 until bh) for (x in 0 until bw) {
+            val nx = (x + 0.5f) / bw * 2f - 1f; val ny = (y + 0.5f) / bh * 2f - 1f
+            val r = kotlin.math.sqrt(nx * nx + ny * ny)
+            val t = (1f - r / 0.96f).coerceIn(0f, 1f)
+            val a = (peak * t * t * (3f - 2f * t)).toInt()
+            b.setPixel(x, y, Color.argb(a, Color.red(c), Color.green(c), Color.blue(c)))
+        }
+        return b
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        if (width == 0 || height == 0) return
+        val b = bmp ?: render().also { bmp = it }
+        dst.set(0, 0, width, height)
+        canvas.drawBitmap(b, null, dst, paint)
     }
 }

@@ -67,6 +67,7 @@ class MainActivity : Activity() {
 
     private lateinit var clockBlock: LinearLayout
     private lateinit var clockHalo: SoftHalo
+    private lateinit var brandHalo: SoftHalo
     private lateinit var santa: SantaSleigh
     private var resumed = false
     private val santaRun = object : Runnable {
@@ -91,10 +92,6 @@ class MainActivity : Activity() {
     private lateinit var guideTitle: TextView
     private lateinit var guideBar: SegmentedBar
     private lateinit var guideView: GuideView
-    private lateinit var heroPill: TextView
-    private lateinit var heroMeta: TextView
-    private lateinit var heroTitle: TextView
-    private lateinit var heroDetail: TextView
     private lateinit var guideHint: TextView
     private lateinit var guideStatus: TextView
     private lateinit var guideCredit: TextView
@@ -191,8 +188,19 @@ class MainActivity : Activity() {
             leftMargin = dpi(60f); topMargin = dpi(40f)
         })
 
-        // Brand + mode switch, top-right
+        // Brand + mode switch, top-right (with its own soft halo)
+        brandHalo = SoftHalo(this).apply { strength = 0.85f }
+        root.addView(brandHalo, FrameLayout.LayoutParams(dpi(10f), dpi(10f)))
         topRight = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        topRight.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
+            val lp = brandHalo.layoutParams as FrameLayout.LayoutParams
+            val padX = dpi(70f); val padY = dpi(40f)
+            val nw = (r - l) + padX * 2; val nh = (b - t) + padY * 2
+            if (lp.width != nw || lp.height != nh || lp.leftMargin != l - padX || lp.topMargin != t - padY) {
+                lp.width = nw; lp.height = nh; lp.leftMargin = l - padX; lp.topMargin = t - padY
+                brandHalo.layoutParams = lp
+            }
+        }
         val mark = FrameLayout(this).apply {
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Hearth.PURPLE, Hearth.PINK)).apply {
                 cornerRadius = dp(10f); setStroke(dpi(0.6f), Color.argb(86, 255, 255, 255))
@@ -358,46 +366,20 @@ class MainActivity : Activity() {
             rightMargin = dpi(70f); topMargin = dpi(40f)
         })
 
-        val hero = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val metaRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        heroPill = TextView(this).apply {
-            text = "LIVE"; gravity = Gravity.CENTER
-            style(8f, Fonts.body(this@MainActivity, 800), Color.WHITE, 0.08f)
-            setPadding(dpi(7f), 0, dpi(7f), 0)
-            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(0xFFFB7185.toInt(), Hearth.PINK)).apply { cornerRadius = dp(8.5f) }
-        }
-        heroMeta = TextView(this).apply { style(11f, Fonts.body(this@MainActivity, 600), Color.WHITE) }
-        metaRow.addView(heroPill, LinearLayout.LayoutParams(-2, dpi(17f)).apply { rightMargin = dpi(8f) })
-        metaRow.addView(heroMeta)
-        heroTitle = TextView(this).apply {
-            style(26f, Fonts.display(this@MainActivity, 400), Color.WHITE, -0.02f)
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        heroDetail = TextView(this).apply {
-            style(11.5f, Fonts.body(this@MainActivity, 500), Color.WHITE)
-            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
-            setLineSpacing(dp(2f), 1f)
-        }
-        hero.addView(metaRow)
-        hero.addView(heroTitle, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(7f) })
-        hero.addView(heroDetail, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(5f) })
-        guide.addView(hero, FrameLayout.LayoutParams(dpi(560f), -2).apply { leftMargin = dpi(72f); topMargin = dpi(86f) })
-
         guideHint = TextView(this).apply {
-            text = "OK  Watch      ☰  Favorite"
-            style(10f, Fonts.body(this@MainActivity, 700), Color.WHITE)
+            text = "OK  Watch on Hulu     ☰  Favorite"
+            style(8.5f, Fonts.body(this@MainActivity, 700), Color.WHITE, 0.02f)
         }
-        guide.addView(guideHint, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
-            rightMargin = dpi(74f); topMargin = dpi(150f)
+        guide.addView(guideHint, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply {
+            leftMargin = dpi(76f); bottomMargin = dpi(16f)
         })
 
         guideView = GuideView(this).apply {
-            onFocus = { ch, p -> renderHero(ch, p) }
             onWatch = { ch -> watchChannel(ch) }
             onExitUp = { guideBar.requestFocus() }
         }
         guide.addView(guideView, FrameLayout.LayoutParams(-1, -1).apply {
-            leftMargin = dpi(70f); rightMargin = dpi(70f); topMargin = dpi(176f); bottomMargin = dpi(30f)
+            leftMargin = dpi(70f); rightMargin = dpi(66f); topMargin = dpi(98f); bottomMargin = dpi(40f)
         })
         guideStatus = TextView(this).apply {
             text = "Loading listings…"; gravity = Gravity.CENTER
@@ -406,10 +388,10 @@ class MainActivity : Activity() {
         guide.addView(guideStatus, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER).apply { topMargin = dpi(80f) })
         guideCredit = TextView(this).apply {
             text = "Listings: Gracenote · TVmaze · ESPN"
-            style(7f, Fonts.body(this@MainActivity, 600), Color.WHITE)
+            style(7.5f, Fonts.body(this@MainActivity, 600), Color.WHITE)
         }
         guide.addView(guideCredit, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
-            rightMargin = dpi(74f); bottomMargin = dpi(14f)
+            rightMargin = dpi(76f); bottomMargin = dpi(17f)
         })
         root.addView(guide, FrameLayout.LayoutParams(-1, -1))
     }
@@ -432,7 +414,9 @@ class MainActivity : Activity() {
         for (t in listOf(dateText, clockText, weatherTemp, weatherDesc, brandName)) t.setTextColor(ink)
         weatherRange.setTextColor(sub)
         brandSub.setTextColor(sub)
-        clockHalo.dark = dark
+        clockHalo.dark = dark; brandHalo.dark = dark
+        brandName.setShadowLayer(dp(8f), 0f, dp(1f), if (dark) Color.argb(110, 0, 0, 0) else Color.argb(170, 255, 255, 255))
+        brandSub.setShadowLayer(dp(6f), 0f, dp(1f), if (dark) Color.argb(110, 0, 0, 0) else Color.argb(170, 255, 255, 255))
         // A gentle shadow on the text itself, on top of the halo.
         val shade = if (dark) Color.argb(110, 0, 0, 0) else Color.argb(170, 255, 255, 255)
         clockText.setShadowLayer(dp(18f), 0f, dp(2f), shade)
@@ -446,8 +430,8 @@ class MainActivity : Activity() {
         libAdapter.dark = dark
         overlayDim.setBackgroundColor(if (dark) Color.argb(168, 4, 6, 18) else Color.argb(150, 236, 242, 248))
         video.veilColor = if (dark) 0xFF080C1E.toInt() else 0xFFE6EEF6.toInt()
-        for (t in listOf(libTitle, guideTitle, heroTitle)) t.setTextColor(ink)
-        for (t in listOf(heroMeta, heroDetail, guideHint, guideStatus)) t.setTextColor(sub)
+        for (t in listOf(libTitle, guideTitle)) t.setTextColor(ink)
+        for (t in listOf(guideHint, guideStatus)) t.setTextColor(sub)
         guideCredit.setTextColor(Color.argb(110, Color.red(ink), Color.green(ink), Color.blue(ink)))
         libHint.setTextColor(if (dark) Color.argb(215, 255, 255, 255) else Hearth.INK_DARK)
         libHint.background = GlassDrawable(this, 14f, dark)
@@ -585,7 +569,7 @@ class MainActivity : Activity() {
         overlayDim.visibility = View.VISIBLE
         overlayDim.animate().alpha(1f).setDuration(280).setStartDelay(0).setInterpolator(Ease.out).withLayer().start()
         // The home screen steps back: light/dark switch, clock and dock all hide.
-        for ((v, dy) in listOf(dock to dp(26f), clockBlock to -dp(12f), topRight to -dp(12f), clockHalo to -dp(12f))) {
+        for ((v, dy) in listOf(dock to dp(26f), clockBlock to -dp(12f), topRight to -dp(12f), clockHalo to -dp(12f), brandHalo to -dp(12f))) {
             v.animate().cancel()
             v.animate().alpha(0f).translationY(dy).setDuration(200).setStartDelay(0).setInterpolator(Ease.out).withLayer()
                 .withEndAction { if (overlay != null) v.visibility = View.INVISIBLE }.start()
@@ -605,7 +589,7 @@ class MainActivity : Activity() {
         overlayDim.animate().cancel()
         overlayDim.animate().alpha(0f).setDuration(260).setInterpolator(Ease.inOut).withLayer()
             .withEndAction { if (overlay == null) overlayDim.visibility = View.GONE }.start()
-        for (v in listOf(dock, clockBlock, topRight, clockHalo)) {
+        for (v in listOf(dock, clockBlock, topRight, clockHalo, brandHalo)) {
             v.animate().cancel(); v.visibility = View.VISIBLE
             v.animate().alpha(1f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).withLayer().start()
         }
@@ -648,31 +632,14 @@ class MainActivity : Activity() {
                 guideBar.items = guideCats.map { it.name }
                 guideBar.select(guideCats.indexOfFirst { it.id == guideCat }.coerceAtLeast(0), animate = false)
                 guideView.setData(l, favs, guideCat)
+                guideCredit.text = "Listings: ${l.source}"
                 guideStatus.visibility = View.GONE
                 if (first && overlay == "guide") guideView.post { guideView.requestFocus() }
             }
         }
     }
 
-    private val heroFmt = SimpleDateFormat("h:mm", Locale.US)
-    private val heroFmtA = SimpleDateFormat("h:mm a", Locale.US)
 
-    private fun renderHero(ch: Guide.Channel, p: Guide.Program?) {
-        val now = System.currentTimeMillis()
-        val airing = p != null && now >= p.start && now < p.end
-        heroPill.visibility = if (airing) View.VISIBLE else View.GONE
-        if (p == null || p.gap) {
-            heroMeta.text = ch.name
-            heroTitle.text = "${ch.name} — live"
-            heroDetail.text = "No listing for this time slot · you can still tune in"
-        } else {
-            val range = "${heroFmt.format(Date(p.start))} – ${heroFmtA.format(Date(p.end))}"
-            heroMeta.text = if (airing) "${ch.name}  ·  $range  ·  ${(p.end - now) / 60_000} min left" else "${ch.name}  ·  $range"
-            heroTitle.text = p.title
-            heroDetail.text = listOf(p.detail, p.desc).filter { it.isNotBlank() }.joinToString("  ·  ").ifBlank { " " }
-        }
-        guideHint.text = if (ch.hulu != null) "OK  Watch on Hulu      ☰  Favorite" else "OK  Open Hulu      ☰  Favorite"
-    }
 
     private fun watchChannel(ch: Guide.Channel) {
         val hulu = "com.hulu.plus"
