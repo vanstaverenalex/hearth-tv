@@ -18,7 +18,7 @@ GOP=$(python3 -c "print(int(round($FPSN*2)))")
 
 echo "in=$IN dur=$DUR fps=$FPS -> using ${L}s, fade ${F}s, out fps $FPSN"
 
-ffmpeg -hide_banner -loglevel error -y -ss "$SKIP" -t "$L" -i "$IN" -filter_complex "\
+ffmpeg -nostdin -hide_banner -loglevel error -y -ss "$SKIP" -t "$L" -i "$IN" -filter_complex "\
 [0:v]fps=$FPSN,scale=3840:2160:force_original_aspect_ratio=increase:flags=lanczos,crop=3840:2160,setsar=1,format=yuv420p,split[a][b];\
 [a]trim=start=$F,setpts=PTS-STARTPTS[main];\
 [b]trim=end=$F,setpts=PTS-STARTPTS,format=yuva420p,fade=t=in:st=0:d=$F:alpha=1,setpts=PTS+$SHIFT/TB[head];\

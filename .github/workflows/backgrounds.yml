@@ -37,7 +37,7 @@ jobs:
           chmod +x tools/make_loop.sh
           mkdir -p work
           have=$(gh release view backgrounds --json assets --jq '.assets[].name' || true)
-          jq -c '.clips[]' backgrounds.json | while read -r c; do
+          jq -c ".clips[]" backgrounds.json | while read -r c; do
             id=$(echo "$c" | jq -r .id); v=$(echo "$c" | jq -r '.v // 1'); src=$(echo "$c" | jq -r .src)
             name="$id.mp4"; marker="$id.v$v"
             if echo "$have" | grep -qx "$name" && echo "$have" | grep -qx "$marker"; then
@@ -46,7 +46,7 @@ jobs:
             echo "▶ $id"
             curl -fsSL --retry 3 -A "HearthTV-builder/1.0" -o work/src.mp4 "$src" || { echo "download failed: $id"; continue; }
             tools/make_loop.sh work/src.mp4 "work/$name" 32 2 || { echo "encode failed: $id"; continue; }
-            : > "work/$marker"
+            echo "$id v$v $(date -u +%F)" > "work/$marker"
             gh release upload backgrounds "work/$name" "work/$marker" --clobber
             rm -f work/src.mp4 "work/$name" "work/$marker"
           done
