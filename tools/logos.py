@@ -67,6 +67,55 @@ def recolor(im, rgb):
     return solid
 
 
+def _stats(im):
+    lowsat = dark = light = n = 0
+    for r, g, b, a in im.resize((96, max(1, int(96 * im.height / im.width)))).getdata():
+        if a < 128:
+            continue
+        n += 1
+        l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+        if max(r, g, b) - min(r, g, b) < 40: lowsat += 1
+        if l < 0.25: dark += 1
+        if l > 0.75: light += 1
+    n = max(n, 1)
+    return lowsat / n, dark / n, light / n
+
+
+def _map(im, fn):
+    out = Image.new("RGBA", im.size)
+    out.putdata([fn(p) for p in im.getdata()])
+    return out
+
+
+def for_dark(im):
+    """Make a logo readable on dark glass without flattening it."""
+    lowsat, dark, light = _stats(im)
+    if lowsat > 0.85 and dark > 0.08 and light > 0.08:
+        # Black-and-white logo (e.g. a black badge with white letters): invert it.
+        return _map(im, lambda p: (255 - p[0], 255 - p[1], 255 - p[2], p[3]))
+    def f(p):
+        r, g, b, a = p
+        l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+        if a and (l < 0.2 or (l < 0.38 and max(r, g, b) - min(r, g, b) < 40)):
+            return (255, 255, 255, a)
+        return p
+    return _map(im, f)
+
+
+def for_light(im):
+    """Make a logo readable on light glass: only near-white parts turn ink-dark."""
+    lowsat, dark, light = _stats(im)
+    if lowsat > 0.85 and dark > 0.08 and light > 0.08:
+        return im
+    def f(p):
+        r, g, b, a = p
+        l = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+        if a and l > 0.86 and max(r, g, b) - min(r, g, b) < 30:
+            return INK + (a,)
+        return p
+    return _map(im, f)
+
+
 def fit(im):
     im = im.copy()
     im.thumbnail((W - 2 * PAD, H - 2 * PAD), Image.LANCZOS)
@@ -91,8 +140,8 @@ def main():
             im = trim(knock_out_white(fetch(src)))
             lum, _ = luminance(im)
             plate = opaque_box(im) and 0.15 < lum < 0.9  # coloured plate: keep as-is
-            dark = im if plate or lum > 0.32 else recolor(im, (255, 255, 255))
-            light = im if plate or lum < 0.78 else recolor(im, INK)
+            dark = im if plate else for_dark(im)
+            light = im if plate else for_light(im)
             fit(dark).save(os.path.join(out, f"{cid}.png"), optimize=True)
             fit(light).save(os.path.join(out, f"{cid}-light.png"), optimize=True)
             print(f"ok   {cid:12s} lum={lum:.2f} plate={plate}")
