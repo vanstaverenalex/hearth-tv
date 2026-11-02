@@ -188,7 +188,11 @@ object Guide {
     }
 
     /** Build the full guide from now back 30 minutes to about 9 hours ahead. Call off the main thread. */
-    private val isoZ = SimpleDateFormat("yyyy-MM-dd'T'HH:mmX", Locale.US)
+    private val isoSec = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX", Locale.US)
+    private val isoMin = SimpleDateFormat("yyyy-MM-dd'T'HH:mmX", Locale.US)
+    /** Gracenote times look like 2026-11-02T02:00:00Z (older responses dropped the seconds). */
+    private fun parseIso(t: String): Long? =
+        try { isoSec.parse(t)?.time } catch (_: Exception) { null } ?: try { isoMin.parse(t)?.time } catch (_: Exception) { null }
 
     /**
      * Full listings from Gracenote's TV listings grid (the data behind most cable guides):
@@ -245,8 +249,8 @@ object Guide {
                 for (k in 0 until evs.length()) {
                     val e = evs.getJSONObject(k)
                     val p = e.optJSONObject("program") ?: continue
-                    val st = try { isoZ.parse(e.getString("startTime"))?.time } catch (x: Exception) { null } ?: continue
-                    val en = try { isoZ.parse(e.getString("endTime"))?.time } catch (x: Exception) { null } ?: continue
+                    val st = parseIso(e.optString("startTime")) ?: continue
+                    val en = parseIso(e.optString("endTime")) ?: continue
                     val flags = e.optJSONArray("flag")?.let { f -> (0 until f.length()).map { f.getString(it) } } ?: emptyList()
                     val season = p.optString("season", "").takeIf { it.isNotBlank() && it != "null" }
                     val ep = p.optString("episode", "").takeIf { it.isNotBlank() && it != "null" }
