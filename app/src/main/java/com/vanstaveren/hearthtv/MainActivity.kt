@@ -56,6 +56,8 @@ class MainActivity : Activity() {
     private lateinit var brandName: TextView
     private lateinit var brandSub: TextView
     private lateinit var modeBar: LinearLayout
+    /** The dock's Live TV button: where focus rests whenever the home screen opens. */
+    private var liveButton: View? = null
     private lateinit var modeDivider: View
     private val modeButtons = ArrayList<Pair<String, View>>()
     private lateinit var dock: LinearLayout
@@ -131,7 +133,7 @@ class MainActivity : Activity() {
             }
         }
         favRow.scrollToPosition(0)
-        favRow.post { favRow.getChildAt(0)?.requestFocus() }
+        focusLive()
     }
 
     override fun onResume() {
@@ -299,7 +301,8 @@ class MainActivity : Activity() {
         dock.addView(favRow, LinearLayout.LayoutParams(-2, -2))
         dockDivider = View(this)
         dock.addView(dockDivider, LinearLayout.LayoutParams(dpi(1f), dpi(48f)).apply { leftMargin = dpi(7.5f); rightMargin = dpi(7.5f) })
-        dock.addView(dockButton(R.drawable.ic_livetv, "Live TV") { openGuide() })
+        liveButton = dockButton(R.drawable.ic_livetv, "Live TV") { openGuide() }
+        dock.addView(liveButton)
         dock.addView(dockButton(R.drawable.ic_apps, "Apps") { openLibrary() })
         root.addView(dock, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
             bottomMargin = dpi(38f)
@@ -590,7 +593,7 @@ class MainActivity : Activity() {
                 if (overlay == "apps") renderLibrary()
                 if (!firstFocusDone) {
                     firstFocusDone = true
-                    favRow.post { favRow.getChildAt(0)?.requestFocus() ?: dock.getChildAt(2)?.requestFocus() }
+                    focusLive()
                 }
             }
         }
@@ -743,8 +746,10 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (overlay != null) hideOverlay()
-        else favRow.getChildAt(0)?.requestFocus()
+        else focusLive()
     }
+
+    private fun focusLive() { dock.post { liveButton?.requestFocus() } }
 
     private fun open(app: AppEntry) {
         when (app.pkg) {
