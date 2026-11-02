@@ -45,10 +45,21 @@ jobs:
             fi
             echo "▶ $id"
             curl -fsSL --retry 3 -A "HearthTV-builder/1.0" -o work/src.mp4 "$src" || { echo "download failed: $id"; continue; }
-            tools/make_loop.sh work/src.mp4 "work/$name" 32 2 || { echo "encode failed: $id"; continue; }
+            tools/make_loop.sh work/src.mp4 "work/$name" 40 2.5 || { echo "encode failed: $id"; continue; }
             echo "$id v$v $(date -u +%F)" > "work/$marker"
-            gh release upload backgrounds "work/$name" "work/$marker" --clobber
-            rm -f work/src.mp4 "work/$name" "work/$marker"
+            # Small preview frame so the set can be reviewed at a glance.
+            D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "work/$name")
+            ffmpeg -nostdin -hide_banner -loglevel error -y -ss "$(python3 -c "print(float('$D')*0.4)")" -i "work/$name" -frames:v 1 -vf scale=640:-2 "work/$id.jpg"
+            gh release upload backgrounds "work/$name" "work/$marker" "work/$id.jpg" --clobber
+            rm -f work/src.mp4 "work/$name" "work/$marker" "work/$id.jpg"
+          done
+
+      - name: Remove clips that are no longer listed
+        run: |
+          keep=$(jq -r '.clips[].id' backgrounds.json)
+          gh release view backgrounds --json assets --jq '.assets[].name' | while read -r n; do
+            base="${n%%.*}"
+            if ! echo "$keep" | grep -qx "$base"; then echo "removing $n"; gh release delete-asset backgrounds "$n" -y; fi
           done
 
       - name: Summary
