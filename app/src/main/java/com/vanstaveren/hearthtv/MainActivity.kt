@@ -110,14 +110,33 @@ class MainActivity : Activity() {
         buildViews()
         setContentView(root)
         if (intent?.getStringExtra(EXTRA_OPEN) == "guide") root.post { openGuide() }
+        intent?.let { root.post { handleShot(it) } }
+    }
+
+    /**
+     * Screenshot helper (used by the PC's screenshot script over adb): `hearth_shot` = light|dark shows that look
+     * without saving it or touching the backlight; `clear` goes back to the saved mode.
+     */
+    private var shotDark: Boolean? = null
+
+    private fun handleShot(intent: Intent) {
+        when (intent.getStringExtra(EXTRA_SHOT)) {
+            null -> { if (shotDark == null) return; shotDark = null }   // any normal Home press ends a shot
+            "light" -> shotDark = false
+            "dark" -> shotDark = true
+            else -> shotDark = null
+        }
+        applyTheme(force = true)
     }
 
     /** Home button → always the home screen (overlays closed). Live/Guide button → our guide. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleShot(intent)
         when (intent.getStringExtra(EXTRA_OPEN)) {
             "guide" -> { resetHome(); openGuide() }
+            "apps" -> { resetHome(); openLibrary() }
             else -> resetHome()
         }
     }
@@ -453,7 +472,7 @@ class MainActivity : Activity() {
     // ------------------------------------------------------------------ theme
 
     private fun applyTheme(force: Boolean = false) {
-        val nowDark = Display.isDark(prefs, weather)
+        val nowDark = shotDark ?: Display.isDark(prefs, weather)
         if (!force && nowDark == dark) return
         val changed = nowDark != dark
         dark = nowDark
@@ -494,7 +513,7 @@ class MainActivity : Activity() {
         modeBar.background = GlassDrawable(this, 19f, dark)
         styleModeBar()
 
-        if (changed || force) {
+        if ((changed || force) && shotDark == null) {
             worker.execute {
                 val status = Display.applyBacklight(this, dark)
                 android.util.Log.i("HearthDisplay", status)
@@ -847,5 +866,6 @@ class MainActivity : Activity() {
     companion object {
         /** "home" (Home button) or "guide" (remote's Live/Guide button), sent by [HomeWatcher]. */
         const val EXTRA_OPEN = "hearth_open"
+        const val EXTRA_SHOT = "hearth_shot"
     }
 }
