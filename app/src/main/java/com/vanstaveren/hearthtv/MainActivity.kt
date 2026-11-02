@@ -719,6 +719,9 @@ class MainActivity : Activity() {
         android.util.Log.i("HearthGuide", "watch ${ch.id} -> ${link ?: "(Hulu home)"}")
         if (intent == null) { toast("Hulu isn't installed on this TV"); return }
         try {
+            // Hulu ignores a channel link when it's already running in the background (the link goes to
+            // its open screen, which drops it). Clearing Hulu's task makes it start fresh and tune in.
+            if (link != null) intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
             startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             if (link == null) Toast.makeText(this, "Opening Hulu — pick ${ch.name} in Live", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
