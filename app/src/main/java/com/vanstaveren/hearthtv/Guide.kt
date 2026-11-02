@@ -30,7 +30,13 @@ object Guide {
         val name: String,
         val aliases: List<String>,
         val hulu: String?,
+        val category: String,
+        val logo: String?,
     )
+
+    data class Category(val id: String, val name: String)
+
+    @Volatile var categories: List<Category> = emptyList()
 
     data class Program(
         val start: Long,
@@ -59,7 +65,12 @@ object Guide {
             if (cache.exists()) cache.readText() else return emptyList()
         }
         return try {
-            val arr = JSONObject(text).getJSONArray("channels")
+            val root = JSONObject(text)
+            val logoBase = root.optString("logos", "")
+            root.optJSONArray("categories")?.let { c ->
+                categories = (0 until c.length()).map { Category(c.getJSONObject(it).getString("id"), c.getJSONObject(it).getString("name")) }
+            }
+            val arr = root.getJSONArray("channels")
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
                 val al = o.optJSONArray("aliases") ?: JSONArray()
@@ -68,6 +79,8 @@ object Guide {
                     name = o.getString("name"),
                     aliases = (listOf(o.getString("name")) + (0 until al.length()).map { al.getString(it) }).map(::norm),
                     hulu = o.optString("hulu", "").ifBlank { null },
+                    category = o.optString("category", "entertainment"),
+                    logo = if (logoBase.isNotBlank()) logoBase + o.getString("id") else null,
                 )
             }
         } catch (e: Exception) { Log.w(TAG, "channels: ${e.message}"); emptyList() }
@@ -111,6 +124,8 @@ object Guide {
         Triple("football", "nfl", 195), Triple("football", "college-football", 210),
         Triple("basketball", "nba", 150), Triple("basketball", "mens-college-basketball", 135),
         Triple("hockey", "nhl", 165), Triple("baseball", "mlb", 180),
+        Triple("basketball", "wnba", 120), Triple("basketball", "womens-college-basketball", 120),
+        Triple("soccer", "usa.1", 120), Triple("soccer", "eng.1", 120), Triple("golf", "pga", 300),
     )
 
     /** Live and upcoming games from ESPN's public scoreboards, placed on the channel that airs them. */
@@ -123,7 +138,9 @@ object Guide {
             } catch (e: Exception) { continue }
             val leagueName = when (league) {
                 "nfl" -> "NFL"; "college-football" -> "College Football"; "nba" -> "NBA"
-                "mens-college-basketball" -> "College Basketball"; "nhl" -> "NHL"; else -> "MLB"
+                "mens-college-basketball" -> "College Basketball"; "nhl" -> "NHL"; "mlb" -> "MLB"
+                "wnba" -> "WNBA"; "womens-college-basketball" -> "Women's College Basketball"
+                "usa.1" -> "MLS"; "eng.1" -> "Premier League"; else -> "Golf"
             }
             for (i in 0 until events.length()) {
                 val ev = events.getJSONObject(i)

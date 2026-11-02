@@ -1,75 +1,73 @@
 package com.vanstaveren.hearthtv
 
 import android.content.Context
-import android.graphics.Matrix
-import android.graphics.SurfaceTexture
 import android.media.MediaPlayer
 import android.util.Log
-import android.view.Surface
-import android.view.TextureView
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import android.view.View
 import android.widget.FrameLayout
-import android.widget.ImageView
 import java.io.File
 
 /**
- * Full-screen looping video background.
- * - Clips are pre-made seamless loops, and MediaPlayer loops them in place (no black flash).
- * - Fills the screen edge to edge (center-crop), never letterboxed.
- * - Changing scenes dissolves: the last frame is frozen on top, the new clip starts
- *   underneath, then the frozen frame fades away.
+ * Full-screen looping video background, tuned for TV performance.
+ * - Uses a SurfaceView, so the TV's hardware video plane shows the 4K video directly
+ *   (no extra GPU copy competing with the UI animations).
+ * - Clips are seamless loops; MediaPlayer loops them in place.
+ * - Fills the screen edge to edge (center-crop).
+ * - Changing scenes: a soft veil fades in, the clip swaps underneath, the veil fades out.
  */
-class LoopPlayer(context: Context) : FrameLayout(context), TextureView.SurfaceTextureListener {
+class LoopPlayer(context: Context) : FrameLayout(context), SurfaceHolder.Callback {
 
-    private val texture = TextureView(context)
-    private val freeze = ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP; alpha = 0f }
+    private val surfaceView = SurfaceView(context)
+    private val veil = View(context)
     private var player: MediaPlayer? = null
-    private var surface: Surface? = null
+    private var holderReady = false
     private var pending: File? = null
     var current: File? = null
         private set
-    private var videoW = 0
-    private var videoH = 0
+    private var videoW = 16
+    private var videoH = 9
+
+    var veilColor: Int = 0xFF080C1E.toInt()
+        set(v) { field = v; veil.setBackgroundColor(v) }
 
     init {
         isFocusable = false
-        texture.surfaceTextureListener = this
-        texture.alpha = 0f
-        addView(texture, LayoutParams(-1, -1))
-        addView(freeze, LayoutParams(-1, -1))
+        surfaceView.holder.addCallback(this)
+        addView(surfaceView, LayoutParams(-1, -1))
+        veil.setBackgroundColor(veilColor)
+        addView(veil, LayoutParams(-1, -1))
     }
 
     fun play(file: File) {
-        if (file == current && player != null) { player?.start(); return }
-        if (surface == null) { pending = file; return }
-        start(file)
+        if (file == current && player != null) { resume(); return }
+        if (!holderReady) { pending = file; return }
+        if (player == null) { start(file); return }
+        // Dissolve: veil in, swap, veil out once the new clip is drawing.
+        veil.animate().cancel()
+        veil.animate().alpha(1f).setDuration(380).setInterpolator(Ease.inOut).withEndAction { start(file) }.start()
     }
 
     fun pause() { try { player?.pause() } catch (_: Exception) {} }
-    fun resume() { try { player?.start() } catch (_: Exception) {} }
+    fun resume() { try { if (player?.isPlaying == false) player?.start() } catch (_: Exception) {} }
 
     private fun start(file: File) {
-        // Freeze what's on screen so the change dissolves instead of cutting.
-        if (player != null && texture.alpha > 0f) {
-            try {
-                freeze.setImageBitmap(texture.getBitmap(960, 540))
-                freeze.animate().cancel()
-                freeze.alpha = 1f
-            } catch (_: Exception) {}
-        }
         release()
         current = file
         val mp = MediaPlayer()
         player = mp
         try {
             mp.setDataSource(file.absolutePath)
-            mp.setSurface(surface)
+            mp.setDisplay(surfaceView.holder)
             mp.isLooping = true
             mp.setVolume(0f, 0f)
-            mp.setOnVideoSizeChangedListener { _, w, h -> videoW = w; videoH = h; fit() }
+            mp.setScreenOnWhilePlaying(false)
+            mp.setOnVideoSizeChangedListener { _, w, h -> if (w > 0 && h > 0) { videoW = w; videoH = h; requestLayout() } }
             mp.setOnInfoListener { _, what, _ ->
                 if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
-                    texture.animate().alpha(1f).setDuration(700).start()
-                    freeze.animate().alpha(0f).setDuration(1400).withEndAction { freeze.setImageDrawable(null) }.start()
+                    veil.animate().cancel()
+                    veil.animate().alpha(0f).setDuration(1100).setInterpolator(Ease.inOut).start()
                 }
                 false
             }
@@ -90,35 +88,29 @@ class LoopPlayer(context: Context) : FrameLayout(context), TextureView.SurfaceTe
         player = null
     }
 
-    /** Center-crop the video to fill the view. */
-    private fun fit() {
-        val vw = width.toFloat(); val vh = height.toFloat()
-        if (vw == 0f || vh == 0f || videoW == 0 || videoH == 0) return
-        val scale = maxOf(vw / videoW, vh / videoH)
-        val sx = videoW * scale / vw
-        val sy = videoH * scale / vh
-        texture.setTransform(Matrix().apply { setScale(sx, sy, vw / 2f, vh / 2f) })
+    /** Size the video surface to cover the screen; the overflow is off-screen. */
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val w = r - l; val h = b - t
+        val scale = maxOf(w.toFloat() / videoW, h.toFloat() / videoH)
+        val sw = (videoW * scale).toInt(); val sh = (videoH * scale).toInt()
+        val x = (w - sw) / 2; val y = (h - sh) / 2
+        surfaceView.layout(x, y, x + sw, y + sh)
+        veil.layout(0, 0, w, h)
     }
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh); fit()
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        holderReady = true
+        val f = pending ?: current
+        pending = null
+        if (f != null) { current = null; veil.alpha = 1f; start(f) }
     }
 
-    override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
-        surface = Surface(st)
-        (pending ?: current)?.let { pending = null; current = null; start(it) }
-    }
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
 
-    override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) = fit()
-
-    override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-        val keep = current
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        holderReady = false
+        pending = current
         release()
-        surface?.release(); surface = null
-        pending = keep
-        texture.alpha = 0f
-        return true
+        veil.animate().cancel(); veil.alpha = 1f
     }
-
-    override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
 }

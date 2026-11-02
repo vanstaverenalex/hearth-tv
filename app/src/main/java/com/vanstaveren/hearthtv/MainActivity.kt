@@ -65,14 +65,35 @@ class MainActivity : Activity() {
     private lateinit var favAdapter: TileAdapter
     private val dockButtons = ArrayList<Pair<FrameLayout, ImageView>>()
 
+    private lateinit var clockBlock: LinearLayout
+    private lateinit var topRight: LinearLayout
+    private lateinit var overlayDim: View
+    private var overlay: String? = null            // "apps", "guide" or null
+
     private lateinit var library: FrameLayout
-    private lateinit var libDim: View
     private lateinit var libTitle: TextView
     private lateinit var libGrid: RecyclerView
     private lateinit var libAdapter: TileAdapter
-    private lateinit var libTabs: LinearLayout
-    private val tabViews = ArrayList<Pair<String, TextView>>()
+    private lateinit var libBar: SegmentedBar
     private lateinit var libHint: TextView
+    private val libTabs = listOf("all" to "All", "favorites" to "Favorites", "hidden" to "Hidden")
+
+    private lateinit var guide: FrameLayout
+    private lateinit var guideTitle: TextView
+    private lateinit var guideBar: SegmentedBar
+    private lateinit var guideView: GuideView
+    private lateinit var heroPill: TextView
+    private lateinit var heroMeta: TextView
+    private lateinit var heroTitle: TextView
+    private lateinit var heroDetail: TextView
+    private lateinit var guideHint: TextView
+    private lateinit var guideStatus: TextView
+    private lateinit var guideCredit: TextView
+    private var lineup: Guide.Lineup? = null
+    private var guideCats: List<Guide.Category> = emptyList()
+    private var guideCat = "all"
+    private var guideLoading = false
+    private val guideWorker = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -115,7 +136,7 @@ class MainActivity : Activity() {
         root.addView(scrim, FrameLayout.LayoutParams(-1, -1))
 
         // Clock + weather, top-left
-        val clockBlock = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        clockBlock = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         dateText = TextView(this).apply { style(14f, Fonts.body(this@MainActivity, 700), Color.WHITE, 0.08f); isAllCaps = true }
         clockText = TextView(this).apply {
             style(116f, Fonts.display(this@MainActivity, 300), Color.WHITE, -0.035f)
@@ -140,7 +161,7 @@ class MainActivity : Activity() {
         })
 
         // Brand + mode switch, top-right
-        val topRight = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        topRight = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val mark = FrameLayout(this).apply {
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Hearth.PURPLE, Hearth.PINK)).apply {
                 cornerRadius = dp(10f); setStroke(dpi(0.6f), Color.argb(86, 255, 255, 255))
@@ -200,15 +221,13 @@ class MainActivity : Activity() {
         dock.addView(favRow, LinearLayout.LayoutParams(-2, -2))
         dockDivider = View(this)
         dock.addView(dockDivider, LinearLayout.LayoutParams(dpi(1f), dpi(48f)).apply { leftMargin = dpi(7.5f); rightMargin = dpi(7.5f) })
-        dock.addView(dockButton(R.drawable.ic_livetv, "Live TV") {
-            startActivity(Intent(this, GuideActivity::class.java).putExtra(GuideActivity.EXTRA_DARK, dark))
-        })
+        dock.addView(dockButton(R.drawable.ic_livetv, "Live TV") { openGuide() })
         dock.addView(dockButton(R.drawable.ic_apps, "Apps") { openLibrary() })
         root.addView(dock, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
             bottomMargin = dpi(38f)
         })
 
-        buildLibrary()
+        buildOverlays()
     }
 
     private fun dockButton(icon: Int, label: String, action: () -> Unit): View {
@@ -247,53 +266,120 @@ class MainActivity : Activity() {
         ))
     }
 
-    private fun buildLibrary() {
+    private fun headerTitle(text: String) = TextView(this).apply {
+        this.text = text; style(30f, Fonts.display(this@MainActivity, 400), Color.WHITE, -0.02f)
+    }
+
+    /** Apps and Live TV share one look: same dim over the live background, header, glass tabs. */
+    private fun buildOverlays() {
+        overlayDim = View(this).apply { alpha = 0f; visibility = View.GONE }
+        root.addView(overlayDim, FrameLayout.LayoutParams(-1, -1))
+
+        // ---- Apps
         library = FrameLayout(this).apply { visibility = View.GONE; clipChildren = false }
-        libDim = View(this)
-        library.addView(libDim, FrameLayout.LayoutParams(-1, -1))
-
-        libTitle = TextView(this).apply { text = "Apps"; style(32f, Fonts.display(this@MainActivity, 400), Color.WHITE, -0.02f) }
+        libTitle = headerTitle("Apps")
         library.addView(libTitle, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
-            leftMargin = dpi(70f); topMargin = dpi(42f)
+            leftMargin = dpi(70f); topMargin = dpi(36f)
         })
-
-        libTabs = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dpi(3f), dpi(3f), dpi(3f), dpi(3f))
-        }
-        for ((key, label) in listOf("all" to "All", "favorites" to "Favorites", "hidden" to "Hidden")) {
-            val t = TextView(this).apply {
-                text = label; gravity = Gravity.CENTER; isFocusable = true
-                style(11f, Fonts.body(this@MainActivity, 700), Color.WHITE)
-                setPadding(dpi(15f), 0, dpi(15f), 0)
-                setOnClickListener { libraryTab = key; renderLibrary(); styleTabs() }
-                setOnFocusChangeListener { _, _ -> styleTabs() }
+        libBar = SegmentedBar(this).apply {
+            items = libTabs.map { it.second }
+            onSelect = { i -> libraryTab = libTabs[i].first; renderLibrary() }
+            setOnKeyListener { _, code, e ->
+                if (code == KeyEvent.KEYCODE_DPAD_DOWN && e.action == KeyEvent.ACTION_DOWN) { libGrid.getChildAt(0)?.requestFocus(); true } else false
             }
-            tabViews += key to t
-            libTabs.addView(t, LinearLayout.LayoutParams(-2, dpi(30f)))
         }
-        library.addView(libTabs, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
-            rightMargin = dpi(70f); topMargin = dpi(44f)
+        library.addView(libBar, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
+            rightMargin = dpi(70f); topMargin = dpi(40f)
         })
-
         libAdapter = TileAdapter(repo, 146f, 82f, 18f, 18f, ::open, ::showAppMenu)
         libGrid = RecyclerView(this).apply {
             layoutManager = GridLayoutManager(this@MainActivity, 5)
             adapter = libAdapter; itemAnimator = null
+            setHasFixedSize(true); setItemViewCacheSize(20)
             clipChildren = false; clipToPadding = false; overScrollMode = View.OVER_SCROLL_NEVER
             setPadding(0, dpi(12f), 0, dpi(60f))
         }
-        library.addView(libGrid, FrameLayout.LayoutParams(-2, -1, Gravity.CENTER_HORIZONTAL).apply { topMargin = dpi(96f) })
-
+        library.addView(libGrid, FrameLayout.LayoutParams(dpi((146f + 18f) * 5), -1, Gravity.CENTER_HORIZONTAL).apply { topMargin = dpi(92f) })
         libHint = TextView(this).apply {
             text = "☰  Pin, reorder or hide"; gravity = Gravity.CENTER
             style(10f, Fonts.body(this@MainActivity, 600), Color.argb(215, 255, 255, 255))
             setPadding(dpi(13f), 0, dpi(13f), 0)
         }
         library.addView(libHint, FrameLayout.LayoutParams(-2, dpi(28f), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-            bottomMargin = dpi(24f)
+            bottomMargin = dpi(22f)
         })
         root.addView(library, FrameLayout.LayoutParams(-1, -1))
+
+        // ---- Live TV
+        guide = FrameLayout(this).apply { visibility = View.GONE; clipChildren = false }
+        guideTitle = headerTitle("Live TV")
+        guide.addView(guideTitle, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
+            leftMargin = dpi(70f); topMargin = dpi(36f)
+        })
+        guideBar = SegmentedBar(this).apply {
+            items = listOf("All")
+            onSelect = { i -> guideCats.getOrNull(i)?.let { guideCat = it.id; guideView.setCategory(it.id) } }
+            setOnKeyListener { _, code, e ->
+                if (code == KeyEvent.KEYCODE_DPAD_DOWN && e.action == KeyEvent.ACTION_DOWN) { guideView.requestFocus(); true } else false
+            }
+        }
+        guide.addView(guideBar, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
+            rightMargin = dpi(70f); topMargin = dpi(40f)
+        })
+
+        val hero = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val metaRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        heroPill = TextView(this).apply {
+            text = "LIVE"; gravity = Gravity.CENTER
+            style(8f, Fonts.body(this@MainActivity, 800), Color.WHITE, 0.08f)
+            setPadding(dpi(7f), 0, dpi(7f), 0)
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(0xFFFB7185.toInt(), Hearth.PINK)).apply { cornerRadius = dp(8.5f) }
+        }
+        heroMeta = TextView(this).apply { style(11f, Fonts.body(this@MainActivity, 600), Color.WHITE) }
+        metaRow.addView(heroPill, LinearLayout.LayoutParams(-2, dpi(17f)).apply { rightMargin = dpi(8f) })
+        metaRow.addView(heroMeta)
+        heroTitle = TextView(this).apply {
+            style(26f, Fonts.display(this@MainActivity, 400), Color.WHITE, -0.02f)
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        heroDetail = TextView(this).apply {
+            style(12f, Fonts.body(this@MainActivity, 500), Color.WHITE)
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        hero.addView(metaRow)
+        hero.addView(heroTitle, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(7f) })
+        hero.addView(heroDetail, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(5f) })
+        guide.addView(hero, FrameLayout.LayoutParams(dpi(560f), -2).apply { leftMargin = dpi(72f); topMargin = dpi(86f) })
+
+        guideHint = TextView(this).apply {
+            text = "OK  Watch      ☰  Favorite"
+            style(10f, Fonts.body(this@MainActivity, 700), Color.WHITE)
+        }
+        guide.addView(guideHint, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
+            rightMargin = dpi(74f); topMargin = dpi(150f)
+        })
+
+        guideView = GuideView(this).apply {
+            onFocus = { ch, p -> renderHero(ch, p) }
+            onWatch = { ch -> watchChannel(ch) }
+            onExitUp = { guideBar.requestFocus() }
+        }
+        guide.addView(guideView, FrameLayout.LayoutParams(-1, -1).apply {
+            leftMargin = dpi(70f); rightMargin = dpi(70f); topMargin = dpi(176f); bottomMargin = dpi(30f)
+        })
+        guideStatus = TextView(this).apply {
+            text = "Loading listings…"; gravity = Gravity.CENTER
+            style(13f, Fonts.body(this@MainActivity, 600), Color.WHITE)
+        }
+        guide.addView(guideStatus, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER).apply { topMargin = dpi(80f) })
+        guideCredit = TextView(this).apply {
+            text = "Listings: TVmaze · Games: ESPN"
+            style(7f, Fonts.body(this@MainActivity, 600), Color.WHITE)
+        }
+        guide.addView(guideCredit, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
+            rightMargin = dpi(74f); bottomMargin = dpi(14f)
+        })
+        root.addView(guide, FrameLayout.LayoutParams(-1, -1))
     }
 
     // ------------------------------------------------------------------ theme
@@ -322,13 +408,16 @@ class MainActivity : Activity() {
         for ((face, img) in dockButtons) { img.setColorFilter(ink); styleDockButton(face, (face.parent as View).isFocused) }
         favAdapter.dark = dark
         libAdapter.dark = dark
-        libTitle.setTextColor(ink)
-        libDim.setBackgroundColor(if (dark) Color.argb(160, 4, 6, 18) else Color.argb(140, 236, 242, 248))
+        overlayDim.setBackgroundColor(if (dark) Color.argb(168, 4, 6, 18) else Color.argb(150, 236, 242, 248))
+        video.veilColor = if (dark) 0xFF080C1E.toInt() else 0xFFE6EEF6.toInt()
+        for (t in listOf(libTitle, guideTitle, heroTitle)) t.setTextColor(ink)
+        for (t in listOf(heroMeta, heroDetail, guideHint, guideStatus)) t.setTextColor(sub)
+        guideCredit.setTextColor(Color.argb(110, Color.red(ink), Color.green(ink), Color.blue(ink)))
         libHint.setTextColor(if (dark) Color.argb(215, 255, 255, 255) else Hearth.INK_DARK)
-        libHint.background = LayerDrawable(arrayOf(GlassDrawable(this, 14f, dark)))
-        libTabs.background = GlassDrawable(this, 18f, dark)
+        libHint.background = GlassDrawable(this, 14f, dark)
+        libBar.dark = dark; guideBar.dark = dark; guideView.dark = dark
         modeBar.background = GlassDrawable(this, 19f, dark)
-        styleModeBar(); styleTabs()
+        styleModeBar()
 
         if (changed || force) {
             worker.execute {
@@ -357,19 +446,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun styleTabs() {
-        val ink = if (dark) Color.WHITE else Hearth.INK_DARK
-        for ((key, t) in tabViews) {
-            val selected = key == libraryTab
-            t.background = when {
-                t.isFocused -> LayerDrawable(arrayOf(hearthGradient(this, 15f, 0.5f), rimDrawable(this, 15f, true, dark)))
-                selected -> GradientDrawable().apply { cornerRadius = dp(15f); setColor(if (dark) Color.argb(56, 255, 255, 255) else Color.WHITE) }
-                else -> null
-            }
-            t.setTextColor(if (t.isFocused) Color.WHITE else if (selected) ink else Color.argb(170, Color.red(ink), Color.green(ink), Color.blue(ink)))
-        }
-    }
-
     /** Pick the live background for this moment: light/dark, time of day, season and weather. */
     private fun refreshScene() {
         val scene = Backgrounds.contextNow(dark, weather)
@@ -391,6 +467,10 @@ class MainActivity : Activity() {
         dateText.text = SimpleDateFormat("EEEE, MMMM d", Locale.US).format(now)
         applyTheme()
         refreshScene()
+        if (overlay == "guide") {
+            guideView.tick()
+            if (System.currentTimeMillis() - (lineup?.loadedAt ?: 0L) > 20 * 60_000L) loadGuide()
+        }
         ui.postDelayed(::tick, 60_000 - (System.currentTimeMillis() % 60_000) + 50)
     }
 
@@ -423,7 +503,7 @@ class MainActivity : Activity() {
                 allApps = apps
                 prefs.seedFavorites(apps.map { it.pkg })
                 renderDock()
-                if (library.visibility == View.VISIBLE) renderLibrary()
+                if (overlay == "apps") renderLibrary()
                 if (!firstFocusDone) {
                     firstFocusDone = true
                     favRow.post { favRow.getChildAt(0)?.requestFocus() ?: dock.getChildAt(2)?.requestFocus() }
@@ -448,31 +528,152 @@ class MainActivity : Activity() {
                 AppEntry(Specials.FIRE_HOME, null, "Fire TV Home", false) +
                 AppEntry(Specials.SETTINGS, null, "Settings", false)
         }
-        val cols = 5
-        libGrid.layoutParams = (libGrid.layoutParams as FrameLayout.LayoutParams).apply {
-            width = dpi((146f + 18f) * cols)
-        }
     }
 
     private fun openLibrary() {
         libraryTab = "all"
-        renderLibrary(); styleTabs()
-        library.alpha = 0f
-        library.visibility = View.VISIBLE
-        library.animate().alpha(1f).setDuration(220).start()
-        dock.animate().alpha(0f).setDuration(160).start()
+        libBar.select(0, animate = false)
+        renderLibrary()
+        showOverlay("apps")
         libGrid.post { libGrid.getChildAt(0)?.requestFocus() }
     }
 
-    private fun closeLibrary() {
-        library.animate().alpha(0f).setDuration(180).withEndAction { library.visibility = View.GONE }.start()
-        dock.animate().alpha(1f).setDuration(200).start()
-        dock.post { (dock.getChildAt(dock.childCount - 1)).requestFocus() }
+    private fun showOverlay(which: String) {
+        overlay = which
+        val panel = if (which == "apps") library else guide
+        val other = if (which == "apps") guide else library
+        other.animate().cancel(); other.visibility = View.GONE
+        overlayDim.animate().cancel()
+        overlayDim.visibility = View.VISIBLE
+        overlayDim.animate().alpha(1f).setDuration(280).setStartDelay(0).setInterpolator(Ease.out).withLayer().start()
+        // The home screen steps back: light/dark switch, clock and dock all hide.
+        for ((v, dy) in listOf(dock to dp(26f), clockBlock to -dp(12f), topRight to -dp(12f))) {
+            v.animate().cancel()
+            v.animate().alpha(0f).translationY(dy).setDuration(200).setStartDelay(0).setInterpolator(Ease.out).withLayer()
+                .withEndAction { if (overlay != null) v.visibility = View.INVISIBLE }.start()
+        }
+        panel.animate().cancel()
+        panel.alpha = 0f; panel.translationY = dp(18f); panel.visibility = View.VISIBLE
+        panel.animate().alpha(1f).translationY(0f).setDuration(340).setStartDelay(40).setInterpolator(Ease.out).withLayer().start()
+    }
+
+    private fun hideOverlay() {
+        val which = overlay ?: return
+        overlay = null
+        val panel = if (which == "apps") library else guide
+        panel.animate().cancel()
+        panel.animate().alpha(0f).translationY(dp(12f)).setDuration(200).setStartDelay(0).setInterpolator(Ease.inOut).withLayer()
+            .withEndAction { if (overlay != which) panel.visibility = View.GONE }.start()
+        overlayDim.animate().cancel()
+        overlayDim.animate().alpha(0f).setDuration(260).setInterpolator(Ease.inOut).withLayer()
+            .withEndAction { if (overlay == null) overlayDim.visibility = View.GONE }.start()
+        for (v in listOf(dock, clockBlock, topRight)) {
+            v.animate().cancel(); v.visibility = View.VISIBLE
+            v.animate().alpha(1f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).withLayer().start()
+        }
+        val btn = if (which == "apps") dock.getChildAt(dock.childCount - 1) else dock.getChildAt(dock.childCount - 2)
+        dock.post { btn?.requestFocus() }
+    }
+
+    // ------------------------------------------------------------------ live tv
+
+    private fun favChannels(): MutableSet<String> =
+        getSharedPreferences("hearth", MODE_PRIVATE).getString("fav_channels", "")!!
+            .split(",").filter { it.isNotBlank() }.toMutableSet()
+
+    private fun openGuide() {
+        showOverlay("guide")
+        if (lineup == null || System.currentTimeMillis() - (lineup?.loadedAt ?: 0L) > 20 * 60_000L) loadGuide()
+        else guideView.post { guideView.requestFocus() }
+    }
+
+    private fun loadGuide() {
+        if (guideLoading) return
+        guideLoading = true
+        if (lineup == null) { guideStatus.text = "Loading listings…"; guideStatus.visibility = View.VISIBLE }
+        guideWorker.execute {
+            val l = try { Guide.load(this) } catch (e: Exception) { null }
+            ui.post {
+                guideLoading = false
+                if (l == null || l.channels.isEmpty()) {
+                    if (lineup == null) guideStatus.text = "Couldn't load the channel list. Check the internet connection."
+                    return@post
+                }
+                val first = lineup == null
+                lineup = l
+                val favs = favChannels()
+                val present = l.channels.map { it.category }.toSet()
+                guideCats = Guide.categories.filter { c ->
+                    c.id == "all" || (c.id == "favorites" && favs.isNotEmpty()) || c.id in present
+                }.ifEmpty { listOf(Guide.Category("all", "All")) }
+                if (guideCats.none { it.id == guideCat }) guideCat = "all"
+                guideBar.items = guideCats.map { it.name }
+                guideBar.select(guideCats.indexOfFirst { it.id == guideCat }.coerceAtLeast(0), animate = false)
+                guideView.setData(l, favs, guideCat)
+                guideStatus.visibility = View.GONE
+                if (first && overlay == "guide") guideView.post { guideView.requestFocus() }
+            }
+        }
+    }
+
+    private val heroFmt = SimpleDateFormat("h:mm", Locale.US)
+    private val heroFmtA = SimpleDateFormat("h:mm a", Locale.US)
+
+    private fun renderHero(ch: Guide.Channel, p: Guide.Program?) {
+        val now = System.currentTimeMillis()
+        val airing = p != null && now >= p.start && now < p.end
+        heroPill.visibility = if (airing) View.VISIBLE else View.GONE
+        if (p == null || p.gap) {
+            heroMeta.text = ch.name
+            heroTitle.text = "${ch.name} — live"
+            heroDetail.text = "No listing for this time slot · you can still tune in"
+        } else {
+            val range = "${heroFmt.format(Date(p.start))} – ${heroFmtA.format(Date(p.end))}"
+            heroMeta.text = if (airing) "${ch.name}  ·  $range  ·  ${(p.end - now) / 60_000} min left" else "${ch.name}  ·  $range"
+            heroTitle.text = p.title
+            heroDetail.text = p.detail.ifBlank { " " }
+        }
+        guideHint.text = if (ch.hulu != null) "OK  Watch on Hulu      ☰  Favorite" else "OK  Open Hulu      ☰  Favorite"
+    }
+
+    private fun watchChannel(ch: Guide.Channel) {
+        val hulu = "com.hulu.plus"
+        val link = ch.hulu
+        val intent = if (link != null) Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(hulu)
+        else packageManager.getLeanbackLaunchIntentForPackage(hulu) ?: packageManager.getLaunchIntentForPackage(hulu)
+        if (intent == null) { toast("Hulu isn't installed on this TV"); return }
+        try {
+            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            if (link == null) Toast.makeText(this, "Opening Hulu — pick ${ch.name} in Live", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            packageManager.getLaunchIntentForPackage(hulu)?.let { startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        }
+    }
+
+    private fun toggleChannelFavorite() {
+        val ch = guideView.focusedChannel() ?: return
+        val favs = favChannels()
+        val adding = favs.add(ch.id)
+        if (!adding) favs.remove(ch.id)
+        getSharedPreferences("hearth", MODE_PRIVATE).edit().putString("fav_channels", favs.joinToString(",")).apply()
+        guideView.setFavorites(favs)
+        toast(if (adding) "${ch.name} added to Favorites" else "${ch.name} removed from Favorites")
+        lineup?.let { l ->
+            val present = l.channels.map { it.category }.toSet()
+            guideCats = Guide.categories.filter { c -> c.id == "all" || (c.id == "favorites" && favs.isNotEmpty()) || c.id in present }
+            guideBar.items = guideCats.map { it.name }
+            guideBar.select(guideCats.indexOfFirst { it.id == guideCat }.coerceAtLeast(0), animate = false)
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (overlay == "guide" && keyCode == KeyEvent.KEYCODE_MENU) { toggleChannelFavorite(); return true }
+        return super.onKeyDown(keyCode, event)
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (library.visibility == View.VISIBLE) closeLibrary()
+        if (overlay != null) hideOverlay()
         else favRow.getChildAt(0)?.requestFocus()
     }
 
@@ -533,7 +734,7 @@ class MainActivity : Activity() {
 
     private fun refreshAll() {
         renderDock()
-        if (library.visibility == View.VISIBLE) renderLibrary()
+        if (overlay == "apps") renderLibrary()
     }
 
     /** ☰ on the light/dark switch: shows what setup has been done on this TV. */

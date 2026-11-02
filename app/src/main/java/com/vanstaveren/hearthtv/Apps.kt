@@ -24,8 +24,12 @@ object Specials {
 class AppRepository(private val context: Context) {
 
     private val pm = context.packageManager
+    /** Wide TV banner art, only when it's real 16:9-ish artwork. */
     val banners = HashMap<String, Drawable?>()
+    /** Sharpest available app icon. */
     val icons = HashMap<String, Drawable?>()
+    /** A pleasant tint taken from the icon, for tiles without banner art. */
+    val tints = HashMap<String, Int>()
 
     fun load(): List<AppEntry> {
         val found = LinkedHashMap<String, AppEntry>()
@@ -45,16 +49,54 @@ class AppRepository(private val context: Context) {
         }
         for (app in found.values) {
             if (!banners.containsKey(app.pkg)) {
-                banners[app.pkg] = try {
-                    pm.getApplicationBanner(app.pkg)
-                        ?: app.component?.let { pm.getActivityBanner(it) }
+                val b = try {
+                    pm.getApplicationBanner(app.pkg) ?: app.component?.let { pm.getActivityBanner(it) }
                 } catch (e: Exception) { null }
+                // Square or tiny "banners" look broken when stretched; treat them as missing.
+                val ok = b != null && b.intrinsicWidth >= 160 && b.intrinsicHeight > 0 &&
+                    b.intrinsicWidth.toFloat() / b.intrinsicHeight >= 1.45f
+                banners[app.pkg] = if (ok) b else null
             }
             if (!icons.containsKey(app.pkg)) {
-                icons[app.pkg] = try { pm.getApplicationIcon(app.pkg) } catch (e: Exception) { null }
+                val ic = sharpIcon(app.pkg)
+                icons[app.pkg] = ic
+                tints[app.pkg] = tintFrom(ic)
             }
         }
         return found.values.sortedBy { it.label.lowercase() }
+    }
+
+    /** Ask the app for its highest-density icon so it stays crisp on a 4K TV. */
+    private fun sharpIcon(pkg: String): Drawable? = try {
+        val ai = pm.getApplicationInfo(pkg, 0)
+        val res = pm.getResourcesForApplication(ai)
+        (if (ai.icon != 0) try {
+            res.getDrawableForDensity(ai.icon, android.util.DisplayMetrics.DENSITY_XXXHIGH, null)
+        } catch (e: Exception) { null } else null) ?: pm.getApplicationIcon(ai)
+    } catch (e: Exception) { null }
+
+    private fun tintFrom(d: Drawable?): Int {
+        if (d == null) return 0xFF2A2440.toInt()
+        return try {
+            val bmp = android.graphics.Bitmap.createBitmap(8, 8, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(bmp)
+            d.setBounds(0, 0, 8, 8); d.draw(c)
+            var r = 0L; var g = 0L; var b = 0L; var n = 0L
+            for (x in 0 until 8) for (y in 0 until 8) {
+                val p = bmp.getPixel(x, y)
+                val a = android.graphics.Color.alpha(p)
+                if (a < 128) continue
+                val rr = android.graphics.Color.red(p); val gg = android.graphics.Color.green(p); val bb = android.graphics.Color.blue(p)
+                if (maxOf(rr, gg, bb) - minOf(rr, gg, bb) < 18 && (rr > 225 || rr < 25)) continue // skip white/black
+                r += rr; g += gg; b += bb; n++
+            }
+            if (n == 0L) return 0xFF2A2440.toInt()
+            val hsv = FloatArray(3)
+            android.graphics.Color.RGBToHSV((r / n).toInt(), (g / n).toInt(), (b / n).toInt(), hsv)
+            hsv[1] = hsv[1].coerceIn(0.35f, 0.75f)
+            hsv[2] = 0.42f
+            android.graphics.Color.HSVToColor(hsv)
+        } catch (e: Exception) { 0xFF2A2440.toInt() }
     }
 
     fun launchIntent(app: AppEntry): Intent? {

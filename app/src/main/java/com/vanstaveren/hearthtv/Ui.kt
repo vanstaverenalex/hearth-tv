@@ -133,42 +133,70 @@ class GlassDrawable(private val ctx: Context, private val radiusDp: Float, var d
     override fun getOpacity() = PixelFormat.TRANSLUCENT
 }
 
-/** The Hearth focus glow: purple light from the top-left, pink from the bottom-right. */
+/** iOS-like easing: quick to start, soft to settle. */
+object Ease {
+    val out = android.view.animation.PathInterpolator(0.2f, 0.8f, 0.2f, 1f)
+    val inOut = android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f)
+}
+
+/**
+ * The Hearth focus glow: purple light from the top-left, pink from the bottom-right.
+ * The blur is expensive, so each glow size is rendered once into a bitmap and reused;
+ * showing/hiding is then just a cheap hardware alpha fade.
+ */
 class GlowView(context: Context, private val radiusDp: Float, private val padDp: Float) : View(context) {
-    private val purple = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Hearth.PURPLE; alpha = 175
-        maskFilter = BlurMaskFilter(context.dp(20f), BlurMaskFilter.Blur.NORMAL)
-    }
-    private val pink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Hearth.PINK; alpha = 165
-        maskFilter = BlurMaskFilter(context.dp(22f), BlurMaskFilter.Blur.NORMAL)
-    }
-    private val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(200, 100, 230); alpha = 80
-        maskFilter = BlurMaskFilter(context.dp(40f), BlurMaskFilter.Blur.NORMAL)
-    }
-    private val r = RectF()
+    private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private var bmp: android.graphics.Bitmap? = null
 
     init {
-        setLayerType(LAYER_TYPE_SOFTWARE, null) // blur mask filters need a software layer
         alpha = 0f
         isFocusable = false
+        visibility = INVISIBLE
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (w > 0 && h > 0) bmp = GlowCache.get(context, w, h, radiusDp, padDp)
     }
 
     override fun onDraw(canvas: Canvas) {
-        val pad = dp(padDp)
-        val rad = dp(radiusDp)
-        val off = dp(5f)
-        r.set(pad, pad, width - pad, height - pad)
-        canvas.drawRoundRect(r, rad, rad, halo)
-        r.set(pad - off, pad - off, width - pad - off, height - pad - off)
-        canvas.drawRoundRect(r, rad, rad, purple)
-        r.set(pad + off, pad + off, width - pad + off, height - pad + off)
-        canvas.drawRoundRect(r, rad, rad, pink)
+        bmp?.let { canvas.drawBitmap(it, null, android.graphics.Rect(0, 0, width, height), paint) }
     }
 
     fun show(on: Boolean) {
-        animate().alpha(if (on) 1f else 0f).setDuration(if (on) 220 else 160).start()
+        animate().cancel()
+        if (on) {
+            visibility = VISIBLE
+            animate().alpha(1f).setDuration(240).setInterpolator(Ease.out).start()
+        } else {
+            animate().alpha(0f).setDuration(180).setInterpolator(Ease.out)
+                .withEndAction { if (alpha == 0f) visibility = INVISIBLE }.start()
+        }
+    }
+}
+
+object GlowCache {
+    private val cache = HashMap<String, android.graphics.Bitmap>()
+
+    fun get(ctx: Context, w: Int, h: Int, radiusDp: Float, padDp: Float): android.graphics.Bitmap {
+        // Render at half size; the glow is soft, so upscaling is invisible and saves memory.
+        val key = "$w:$h:$radiusDp:$padDp"
+        return cache.getOrPut(key) {
+            val s = 0.5f
+            val bw = maxOf(1, (w * s).toInt()); val bh = maxOf(1, (h * s).toInt())
+            val b = android.graphics.Bitmap.createBitmap(bw, bh, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = Canvas(b)
+            c.scale(s, s)
+            val pad = ctx.dp(padDp); val rad = ctx.dp(radiusDp); val off = ctx.dp(5f)
+            val r = RectF()
+            fun p(color: Int, a: Int, blur: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = color; alpha = a; maskFilter = BlurMaskFilter(ctx.dp(blur), BlurMaskFilter.Blur.NORMAL)
+            }
+            r.set(pad, pad, w - pad, h - pad); c.drawRoundRect(r, rad, rad, p(Color.rgb(200, 100, 230), 80, 40f))
+            r.set(pad - off, pad - off, w - pad - off, h - pad - off); c.drawRoundRect(r, rad, rad, p(Hearth.PURPLE, 175, 20f))
+            r.set(pad + off, pad + off, w - pad + off, h - pad + off); c.drawRoundRect(r, rad, rad, p(Hearth.PINK, 165, 22f))
+            b
+        }
     }
 }
 
@@ -196,7 +224,8 @@ fun hearthGradient(ctx: Context, radiusDp: Float, alpha: Float): GradientDrawabl
     ).apply { cornerRadius = ctx.dp(radiusDp) }
 
 fun animateScale(v: View, to: Float) {
-    v.animate().scaleX(to).scaleY(to).setDuration(180).start()
+    v.animate().cancel()
+    v.animate().scaleX(to).scaleY(to).setDuration(if (to > 1f) 260 else 200).setInterpolator(Ease.out).withLayer().start()
 }
 
 @Suppress("unused")
