@@ -69,6 +69,12 @@ class GuideView(context: Context) : View(context) {
     var onWatch: ((Guide.Channel) -> Unit)? = null
     var onExitUp: (() -> Unit)? = null
 
+    /**
+     * Sibling view (same bounds, added right after this one) that draws the flowing shimmer on the
+     * card's edge. Kept separate so the light can move every frame without redrawing the whole grid.
+     */
+    val rim = RimOverlay(context)
+
     private var all: List<Guide.Channel> = emptyList()
     private var programs: Map<String, List<Guide.Program>> = emptyMap()
     private var channels: List<Guide.Channel> = emptyList()
@@ -238,6 +244,7 @@ class GuideView(context: Context) : View(context) {
 
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+        if (gainFocus) rim.since = SystemClock.uptimeMillis()
         invalidate()
     }
 
@@ -424,11 +431,21 @@ class GuideView(context: Context) : View(context) {
         focusRim.shader = LinearGradient(0f, card.top, 0f, card.bottom, Color.argb(200, 255, 228, 246), Color.argb(60, 255, 228, 246), Shader.TileMode.CLAMP)
         canvas.drawRoundRect(card, cardR, cardR, focusRim)
 
-        // Content fades in as the card settles on its row.
-        val alpha = ((1 - abs(fRow.x - row) * 2.5) * 255).toInt().coerceIn(0, 255)
+        rim.show(card, cardR, isFocused)
+
+        // Content fades in as the card settles on its row, and eases in again when the show changes.
+        val key = "$row|${p?.start}|${ch.id}"
+        val t = SystemClock.uptimeMillis()
+        if (key != contentKey) { contentKey = key; contentAt = t }
+        val k = ((t - contentAt) / 220f).coerceIn(0f, 1f)
+        val ease = 1f - (1f - k) * (1f - k) * (1f - k)
+        if (k < 1f) postInvalidateOnAnimation()
+        val settle = (1 - abs(fRow.x - row) * 2.5).toFloat().coerceIn(0f, 1f)
+        val alpha = (255 * settle * ease).toInt().coerceIn(0, 255)
         if (alpha == 0) return
         val layer = if (alpha < 255) canvas.saveLayerAlpha(card, alpha) else canvas.save()
         canvas.clipRect(card)
+        canvas.translate((1f - ease) * dp(10f), 0f)
 
         val pad = dp(11f)
         val ph = card.height() - 2 * pad
@@ -501,13 +518,33 @@ class GuideView(context: Context) : View(context) {
         canvas.save()
         clip.reset(); clip.addRoundRect(r, pr, pr, Path.Direction.CW); canvas.clipPath(clip)
         if (art != null) {
+            // The channel logo shows until the poster arrives, then the poster fades in over it.
+            val seen = artSeen.getOrPut(p!!.art!!) { if (artSeen.size > 300) artSeen.clear(); SystemClock.uptimeMillis() }
+            val fadeIn = ((SystemClock.uptimeMillis() - seen) / 260f).coerceIn(0f, 1f)
+            if (fadeIn < 1f) { drawPosterFallback(canvas, ch, r); postInvalidateOnAnimation() }
             // centre-crop into the 3:4 frame
             val s = maxOf(r.width() / art.width, r.height() / art.height)
             val w = art.width * s; val h = art.height * s
             tmp2.set(r.centerX() - w / 2, r.centerY() - h / 2, r.centerX() + w / 2, r.centerY() + h / 2)
-            bmpPaint.alpha = 255
+            bmpPaint.alpha = (255 * fadeIn).toInt()
             canvas.drawBitmap(art, null, tmp2, bmpPaint)
-        } else {
+        } else drawPosterFallback(canvas, ch, r)
+        // progress along the bottom of the poster for what's airing
+        if (p != null && !p.gap && now >= p.start && now < p.end) {
+            val f = ((now - p.start).toFloat() / (p.end - p.start)).coerceIn(0f, 1f)
+            fill.shader = null; fill.color = Color.argb(90, 0, 0, 0)
+            canvas.drawRect(r.left, r.bottom - dp(3f), r.right, r.bottom, fill)
+            fill.color = Color.WHITE
+            canvas.drawRect(r.left, r.bottom - dp(3f), r.left + r.width() * f, r.bottom, fill)
+        }
+        canvas.restore()
+        fill.shader = null; fill.style = Paint.Style.STROKE; fill.strokeWidth = dp(0.8f); fill.color = Color.argb(70, 255, 255, 255)
+        canvas.drawRoundRect(r, pr, pr, fill)
+        fill.style = Paint.Style.FILL
+    }
+
+    private fun drawPosterFallback(canvas: Canvas, ch: Guide.Channel, r: RectF) {
+        run {
             fill.shader = LinearGradient(r.left, r.top, r.right, r.bottom, Color.argb(90, 20, 10, 50), Color.argb(60, 20, 10, 50), Shader.TileMode.CLAMP)
             canvas.drawRect(r, fill); fill.shader = null
             val logo = ch.logo?.let { Logos.get(cardLogoUrl(it)) }
@@ -524,20 +561,11 @@ class GuideView(context: Context) : View(context) {
                 cardMeta.textAlign = Paint.Align.LEFT
             }
         }
-        // progress along the bottom of the poster for what's airing
-        if (p != null && !p.gap && now >= p.start && now < p.end) {
-            val f = ((now - p.start).toFloat() / (p.end - p.start)).coerceIn(0f, 1f)
-            fill.shader = null; fill.color = Color.argb(90, 0, 0, 0)
-            canvas.drawRect(r.left, r.bottom - dp(3f), r.right, r.bottom, fill)
-            fill.color = Color.WHITE
-            canvas.drawRect(r.left, r.bottom - dp(3f), r.left + r.width() * f, r.bottom, fill)
-        }
-        canvas.restore()
-        fill.shader = null; fill.style = Paint.Style.STROKE; fill.strokeWidth = dp(0.8f); fill.color = Color.argb(70, 255, 255, 255)
-        canvas.drawRoundRect(r, pr, pr, fill)
-        fill.style = Paint.Style.FILL
     }
     private val tmp2 = RectF()
+    private var contentKey = ""
+    private var contentAt = 0L
+    private val artSeen = HashMap<String, Long>()
 
     /** Title on top; underneath a quiet line: LIVE / NEW in Hearth pink, then time left or start time, then the episode. */
     private fun drawCell(canvas: Canvas, p: Guide.Program, r: RectF, now: Long, airing: Boolean, ink: Int, inkA: (Int) -> Int) {
@@ -578,6 +606,29 @@ class GuideView(context: Context) : View(context) {
             tmp.set(l, r.bottom - dp(4f), l + (rr - l) * f, r.bottom - dp(2.5f)); canvas.drawRoundRect(tmp, dp(1f), dp(1f), fill)
             fill.shader = null
         }
+    }
+}
+
+/** Draws [ShimmerRim] on the guide's card; lives above [GuideView] so only this small layer animates. */
+class RimOverlay(context: Context) : View(context) {
+    private val rect = RectF()
+    private var radius = 0f
+    private var active = false
+    var since = 0L
+
+    init { isFocusable = false; isClickable = false }
+
+    fun show(r: RectF, rad: Float, on: Boolean) {
+        if (on && !active) since = SystemClock.uptimeMillis()
+        val changed = on != active || r != rect
+        active = on; rect.set(r); radius = rad
+        if (changed) invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        if (!active || rect.isEmpty) return
+        ShimmerRim.paint(context, canvas, rect, radius, since)
+        postInvalidateOnAnimation()
     }
 }
 

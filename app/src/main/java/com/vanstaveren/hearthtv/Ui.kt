@@ -7,6 +7,9 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.LinearGradient
+import android.graphics.Matrix
+import android.graphics.SweepGradient
+import android.os.SystemClock
 import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.PixelFormat
@@ -213,6 +216,80 @@ fun rimDrawable(ctx: Context, radiusDp: Float, focused: Boolean, dark: Boolean):
         }
         setStroke(ctx.dpi(if (focused) 1.5f else 1f), c)
     }
+
+/**
+ * The focus edge. A hairline rim with light flowing around it: a bright comet that runs
+ * Hearth purple → pink → white, and a fainter twin opposite. The light glows inward from the
+ * edge only (never across the face), and fades in when focus lands. One is on screen at a time,
+ * so redrawing it every frame is cheap.
+ */
+class ShimmerRim(private val ctx: Context, private val radiusDp: Float) : Drawable() {
+    private val born = SystemClock.uptimeMillis()
+    private val r = RectF()
+
+    override fun draw(canvas: Canvas) {
+        val b = bounds
+        if (b.isEmpty) return
+        r.set(b)
+        paint(ctx, canvas, r, ctx.dp(radiusDp), born)
+        invalidateSelf()   // keep the light moving while this is on screen
+    }
+
+    override fun setAlpha(alpha: Int) {}
+    override fun setColorFilter(colorFilter: ColorFilter?) {}
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity() = PixelFormat.TRANSLUCENT
+
+    companion object {
+        private const val PERIOD = 3200L
+        private val COLORS = intArrayOf(
+            Color.argb(0, 168, 85, 247), Color.argb(0, 168, 85, 247), Color.argb(170, 168, 85, 247),
+            Color.argb(235, 244, 114, 182), Color.argb(255, 255, 255, 255), Color.argb(0, 255, 255, 255),
+            Color.argb(0, 168, 85, 247), Color.argb(0, 168, 85, 247), Color.argb(110, 244, 114, 182),
+            Color.argb(170, 255, 255, 255), Color.argb(0, 255, 255, 255), Color.argb(0, 168, 85, 247),
+        )
+        private val POS = floatArrayOf(0f, 0.12f, 0.24f, 0.31f, 0.335f, 0.35f, 0.6f, 0.72f, 0.82f, 0.843f, 0.857f, 1f)
+        private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+        private val hair = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+        private val m = Matrix()
+        private val tmp = RectF()
+        private var sweep: SweepGradient? = null
+        private var sweepCx = Float.NaN
+        private var sweepCy = Float.NaN
+
+        /** Draw the rim on [rect] (radius [rad] px). [since] = when focus landed, for the fade-in. */
+        fun paint(ctx: Context, canvas: Canvas, rect: RectF, rad: Float, since: Long, strength: Float = 1f) {
+            val now = SystemClock.uptimeMillis()
+            val tIn = ((now - since) / 260f).coerceIn(0f, 1f)
+            val appear = (1f - (1f - tIn) * (1f - tIn) * (1f - tIn)) * strength
+            if (appear <= 0f) return
+            val cx = rect.centerX(); val cy = rect.centerY()
+            if (sweep == null || cx != sweepCx || cy != sweepCy) {
+                sweep = SweepGradient(cx, cy, COLORS, POS); sweepCx = cx; sweepCy = cy
+            }
+            // Same speed everywhere on screen, so the light reads as one continuous system.
+            m.setRotate((now % PERIOD) / PERIOD.toFloat() * 360f, cx, cy)
+            sweep!!.setLocalMatrix(m)
+            line.shader = sweep
+
+            val px = ctx.dp(1f)
+            hair.strokeWidth = px
+            hair.color = Color.argb((120 * appear).toInt(), 255, 236, 248)
+            tmp.set(rect); tmp.inset(px / 2, px / 2)
+            canvas.drawRoundRect(tmp, maxOf(0f, rad - px / 2), maxOf(0f, rad - px / 2), hair)
+
+            for ((w, a) in GLOWS) {
+                val sw = ctx.dp(w)
+                line.strokeWidth = sw
+                line.alpha = (255 * a * appear).toInt()
+                tmp.set(rect); tmp.inset(sw / 2, sw / 2)
+                val rr = maxOf(0f, rad - sw / 2)
+                canvas.drawRoundRect(tmp, rr, rr, line)
+            }
+        }
+        private val GLOWS = listOf(7f to 0.16f, 4f to 0.32f, 1.7f to 1f)
+    }
+}
 
 /** Purple-to-pink fill used for focused rows and pills. */
 fun hearthGradient(ctx: Context, radiusDp: Float, alpha: Float): GradientDrawable =

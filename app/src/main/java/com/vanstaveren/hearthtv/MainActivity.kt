@@ -3,6 +3,7 @@ package com.vanstaveren.hearthtv
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.net.Uri
@@ -344,7 +345,7 @@ class MainActivity : Activity() {
                 cornerRadius = dp(17f); setColor(if (dark) Color.argb(22, 255, 255, 255) else Color.argb(115, 255, 255, 255))
             },
             GlassDrawable(this, 17f, dark),
-        ))
+        ) + if (focused) arrayOf<Drawable>(ShimmerRim(this, 17f)) else emptyArray())
     }
 
     private fun headerTitle(text: String) = TextView(this).apply {
@@ -430,6 +431,10 @@ class MainActivity : Activity() {
         guide.addView(guideView, FrameLayout.LayoutParams(-1, -1).apply {
             leftMargin = dpi(70f); rightMargin = dpi(66f); topMargin = dpi(98f); bottomMargin = dpi(40f)
         })
+        // The card's flowing edge light sits on its own layer right above the grid.
+        guide.addView(guideView.rim, FrameLayout.LayoutParams(-1, -1).apply {
+            leftMargin = dpi(70f); rightMargin = dpi(66f); topMargin = dpi(98f); bottomMargin = dpi(40f)
+        })
         guideStatus = TextView(this).apply {
             text = "Loading listings…"; gravity = Gravity.CENTER
             style(13f, Fonts.body(this@MainActivity, 600), Color.WHITE)
@@ -505,7 +510,7 @@ class MainActivity : Activity() {
         for ((key, v) in modeButtons) {
             val selected = prefs.mode == key
             v.background = when {
-                v.isFocused -> LayerDrawable(arrayOf(hearthGradient(this, 15f, 0.5f), rimDrawable(this, 15f, true, dark)))
+                v.isFocused -> LayerDrawable(arrayOf(hearthGradient(this, 15f, 0.5f), ShimmerRim(this, 15f)))
                 selected -> GradientDrawable().apply {
                     cornerRadius = dp(15f)
                     setColor(if (dark) Color.argb(62, 255, 255, 255) else Color.WHITE)
