@@ -7,9 +7,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.LinearGradient
-import android.graphics.Matrix
-import android.graphics.SweepGradient
-import android.os.SystemClock
 import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.PixelFormat
@@ -147,6 +144,16 @@ object Ease {
  * The blur is expensive, so each glow size is rendered once into a bitmap and reused;
  * showing/hiding is then just a cheap hardware alpha fade.
  */
+/** Shared timing for the focus glow's slow breath, so every glow on screen feels the same. */
+object Glow {
+    /** Dimmest point of the breath, as a fraction of full glow. */
+    const val PULSE_LOW = 0.74f
+    /** One half of the breath (bright → soft); a full cycle is twice this. */
+    const val PULSE_HALF_MS = 1700L
+    /** 0..1 breath for views that draw their own glow (1 = brightest). */
+    fun pulseAt(ms: Long): Float = (0.5 + 0.5 * kotlin.math.cos(ms * Math.PI / PULSE_HALF_MS)).toFloat()
+}
+
 class GlowView(context: Context, private val radiusDp: Float, private val padDp: Float) : View(context) {
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
     private var bmp: android.graphics.Bitmap? = null
@@ -162,8 +169,16 @@ class GlowView(context: Context, private val radiusDp: Float, private val padDp:
         if (w > 0 && h > 0) bmp = GlowCache.get(context, w, h, radiusDp, padDp)
     }
 
+    private val dst = android.graphics.Rect()
+    /** 0..1: a slow breath that lifts the glow a little brighter and back; it never fades out. */
+    private var pulse = 1f
+    private var pulseAnim: ValueAnimator? = null
+
     override fun onDraw(canvas: Canvas) {
-        bmp?.let { canvas.drawBitmap(it, null, android.graphics.Rect(0, 0, width, height), paint) }
+        val b = bmp ?: return
+        dst.set(0, 0, width, height)
+        paint.alpha = (255 * (Glow.PULSE_LOW + (1f - Glow.PULSE_LOW) * pulse)).toInt()
+        canvas.drawBitmap(b, null, dst, paint)
     }
 
     fun show(on: Boolean) {
@@ -171,11 +186,30 @@ class GlowView(context: Context, private val radiusDp: Float, private val padDp:
         if (on) {
             visibility = VISIBLE
             animate().alpha(1f).setDuration(260).setStartDelay(0).setInterpolator(Ease.out).start()
+            startPulse()
         } else {
             animate().alpha(0f).setDuration(180).setInterpolator(Ease.out)
-                .withEndAction { if (alpha == 0f) visibility = INVISIBLE }.start()
+                .withEndAction { if (alpha == 0f) { visibility = INVISIBLE; stopPulse() } }.start()
         }
     }
+
+    private fun startPulse() {
+        pulseAnim?.cancel()
+        pulse = 1f
+        pulseAnim = ValueAnimator.ofFloat(1f, 0f).apply {
+            duration = Glow.PULSE_HALF_MS
+            startDelay = 300
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            addUpdateListener { pulse = it.animatedValue as Float; invalidate() }
+            start()
+        }
+    }
+
+    private fun stopPulse() { pulseAnim?.cancel(); pulseAnim = null; pulse = 1f }
+
+    override fun onDetachedFromWindow() { stopPulse(); super.onDetachedFromWindow() }
 }
 
 object GlowCache {
@@ -216,80 +250,6 @@ fun rimDrawable(ctx: Context, radiusDp: Float, focused: Boolean, dark: Boolean):
         }
         setStroke(ctx.dpi(if (focused) 1.5f else 1f), c)
     }
-
-/**
- * The focus edge. A hairline rim with light flowing around it: a bright comet that runs
- * Hearth purple → pink → white, and a fainter twin opposite. The light glows inward from the
- * edge only (never across the face), and fades in when focus lands. One is on screen at a time,
- * so redrawing it every frame is cheap.
- */
-class ShimmerRim(private val ctx: Context, private val radiusDp: Float) : Drawable() {
-    private val born = SystemClock.uptimeMillis()
-    private val r = RectF()
-
-    override fun draw(canvas: Canvas) {
-        val b = bounds
-        if (b.isEmpty) return
-        r.set(b)
-        paint(ctx, canvas, r, ctx.dp(radiusDp), born)
-        invalidateSelf()   // keep the light moving while this is on screen
-    }
-
-    override fun setAlpha(alpha: Int) {}
-    override fun setColorFilter(colorFilter: ColorFilter?) {}
-    @Deprecated("Deprecated in Java")
-    override fun getOpacity() = PixelFormat.TRANSLUCENT
-
-    companion object {
-        private const val PERIOD = 3200L
-        private val COLORS = intArrayOf(
-            Color.argb(0, 168, 85, 247), Color.argb(0, 168, 85, 247), Color.argb(170, 168, 85, 247),
-            Color.argb(235, 244, 114, 182), Color.argb(255, 255, 255, 255), Color.argb(0, 255, 255, 255),
-            Color.argb(0, 168, 85, 247), Color.argb(0, 168, 85, 247), Color.argb(110, 244, 114, 182),
-            Color.argb(170, 255, 255, 255), Color.argb(0, 255, 255, 255), Color.argb(0, 168, 85, 247),
-        )
-        private val POS = floatArrayOf(0f, 0.12f, 0.24f, 0.31f, 0.335f, 0.35f, 0.6f, 0.72f, 0.82f, 0.843f, 0.857f, 1f)
-        private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-        private val hair = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-        private val m = Matrix()
-        private val tmp = RectF()
-        private var sweep: SweepGradient? = null
-        private var sweepCx = Float.NaN
-        private var sweepCy = Float.NaN
-
-        /** Draw the rim on [rect] (radius [rad] px). [since] = when focus landed, for the fade-in. */
-        fun paint(ctx: Context, canvas: Canvas, rect: RectF, rad: Float, since: Long, strength: Float = 1f) {
-            val now = SystemClock.uptimeMillis()
-            val tIn = ((now - since) / 260f).coerceIn(0f, 1f)
-            val appear = (1f - (1f - tIn) * (1f - tIn) * (1f - tIn)) * strength
-            if (appear <= 0f) return
-            val cx = rect.centerX(); val cy = rect.centerY()
-            if (sweep == null || cx != sweepCx || cy != sweepCy) {
-                sweep = SweepGradient(cx, cy, COLORS, POS); sweepCx = cx; sweepCy = cy
-            }
-            // Same speed everywhere on screen, so the light reads as one continuous system.
-            m.setRotate((now % PERIOD) / PERIOD.toFloat() * 360f, cx, cy)
-            sweep!!.setLocalMatrix(m)
-            line.shader = sweep
-
-            val px = ctx.dp(1f)
-            hair.strokeWidth = px
-            hair.color = Color.argb((120 * appear).toInt(), 255, 236, 248)
-            tmp.set(rect); tmp.inset(px / 2, px / 2)
-            canvas.drawRoundRect(tmp, maxOf(0f, rad - px / 2), maxOf(0f, rad - px / 2), hair)
-
-            for ((w, a) in GLOWS) {
-                val sw = ctx.dp(w)
-                line.strokeWidth = sw
-                line.alpha = (255 * a * appear).toInt()
-                tmp.set(rect); tmp.inset(sw / 2, sw / 2)
-                val rr = maxOf(0f, rad - sw / 2)
-                canvas.drawRoundRect(tmp, rr, rr, line)
-            }
-        }
-        private val GLOWS = listOf(7f to 0.16f, 4f to 0.32f, 1.7f to 1f)
-    }
-}
 
 /** Purple-to-pink fill used for focused rows and pills. */
 fun hearthGradient(ctx: Context, radiusDp: Float, alpha: Float): GradientDrawable =

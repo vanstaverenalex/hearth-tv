@@ -80,11 +80,8 @@ class SegmentedBar(context: Context) : View(context) {
         select(selected, animate = false)
     }
 
-    private var focusAt = 0L
-
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-        if (gainFocus) focusAt = android.os.SystemClock.uptimeMillis()
         invalidate()
     }
 
@@ -105,8 +102,8 @@ class SegmentedBar(context: Context) : View(context) {
             pill.shader = LinearGradient(r.left, 0f, r.right, 0f,
                 Color.argb(140, 168, 85, 247), Color.argb(140, 244, 114, 182), Shader.TileMode.CLAMP)
             canvas.drawRoundRect(r, rad, rad, pill)
-            ShimmerRim.paint(context, canvas, r, rad, focusAt)
-            postInvalidateOnAnimation()
+            rim.color = Color.argb(215, 255, 214, 240)
+            canvas.drawRoundRect(r, rad, rad, rim)
         } else {
             pill.shader = null
             pill.color = if (dark) Color.argb(60, 255, 255, 255) else Color.WHITE

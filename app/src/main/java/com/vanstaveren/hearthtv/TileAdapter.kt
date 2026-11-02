@@ -90,7 +90,7 @@ class TileAdapter(
             animateScale(v, if (focused) 1.06f else 1f)
             v.translationZ = if (focused) 1f else 0f   // draw above neighbours; no shadow layer
             glow.show(focused)
-            card.foreground = if (focused) ShimmerRim(ctx, radiusDp) else rimDrawable(ctx, radiusDp, false, dark)
+            card.foreground = rimDrawable(ctx, radiusDp, focused, dark)
         }
         return holder
     }
@@ -111,7 +111,7 @@ class TileAdapter(
             cornerRadius = ctx.dp(radiusDp)
             setColor(if (dark) Color.argb(235, 22, 22, 34) else Color.argb(235, 246, 248, 252))
         }
-        h.card.foreground = if (h.root.isFocused) ShimmerRim(ctx, radiusDp) else rimDrawable(ctx, radiusDp, false, dark)
+        h.card.foreground = rimDrawable(ctx, radiusDp, h.root.isFocused, dark)
 
         if (banner != null) {
             h.banner.setImageDrawable(banner)

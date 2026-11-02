@@ -70,8 +70,8 @@ class GuideView(context: Context) : View(context) {
     var onExitUp: (() -> Unit)? = null
 
     /**
-     * Sibling view (same bounds, added right after this one) that draws the flowing shimmer on the
-     * card's edge. Kept separate so the light can move every frame without redrawing the whole grid.
+     * Sibling view (same bounds, added right after this one) that draws the card's soft halo with a
+     * slow breath. Kept separate so the glow can animate without redrawing the whole grid.
      */
     val rim = RimOverlay(context)
 
@@ -114,7 +114,6 @@ class GuideView(context: Context) : View(context) {
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val focusFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val focusRim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(1f) }
-    private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
     private val nowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bmpPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
     private val fadePaint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
@@ -244,7 +243,6 @@ class GuideView(context: Context) : View(context) {
 
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-        if (gainFocus) rim.since = SystemClock.uptimeMillis()
         invalidate()
     }
 
@@ -416,13 +414,7 @@ class GuideView(context: Context) : View(context) {
         val p = focusedProgram()
         val top = headerH + (fRow.x * rowH).toFloat() - scrollS.x.toFloat()
         card.set(tlLeft() + gap / 2, top + gap / 2, tlRight() - gap / 2, top + expH - gap / 2)
-        for (i in 3 downTo 1) {
-            val spread = dp(4f) * i
-            tmp.set(card.left - spread, card.top - spread, card.right + spread, card.bottom + spread)
-            glow.shader = LinearGradient(tmp.left, tmp.top, tmp.right, tmp.bottom,
-                Color.argb(34 / i, 168, 85, 247), Color.argb(34 / i, 244, 114, 182), Shader.TileMode.CLAMP)
-            canvas.drawRoundRect(tmp, cardR + spread, cardR + spread, glow)
-        }
+        // The halo around the card is drawn by [rim] (its own layer) so it can breathe without redrawing the grid.
         focusFill.shader = LinearGradient(card.left, card.top, card.right, card.bottom,
             Color.argb(235, 147, 72, 232), Color.argb(235, 230, 98, 172), Shader.TileMode.CLAMP)
         canvas.drawRoundRect(card, cardR, cardR, focusFill)
@@ -609,12 +601,15 @@ class GuideView(context: Context) : View(context) {
     }
 }
 
-/** Draws [ShimmerRim] on the guide's card; lives above [GuideView] so only this small layer animates. */
+/** The guide card's halo: Hearth-coloured glow outside the card's edge, breathing slowly brighter and back. */
 class RimOverlay(context: Context) : View(context) {
     private val rect = RectF()
     private var radius = 0f
     private var active = false
-    var since = 0L
+    private var since = 0L
+    private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val clip = Path()
+    private val tmp = RectF()
 
     init { isFocusable = false; isClickable = false }
 
@@ -627,7 +622,22 @@ class RimOverlay(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         if (!active || rect.isEmpty) return
-        ShimmerRim.paint(context, canvas, rect, radius, since)
+        val t = SystemClock.uptimeMillis() - since
+        val appear = (t / 260f).coerceIn(0f, 1f).let { 1f - (1f - it) * (1f - it) * (1f - it) }
+        val k = appear * (Glow.PULSE_LOW + (1f - Glow.PULSE_LOW) * Glow.pulseAt(t))
+        canvas.save()
+        clip.reset(); clip.addRoundRect(rect, radius, radius, Path.Direction.CW)
+        @Suppress("DEPRECATION")
+        canvas.clipPath(clip, android.graphics.Region.Op.DIFFERENCE)   // glow only outside the card
+        for (i in 4 downTo 1) {
+            val spread = dp(4.5f) * i
+            tmp.set(rect.left - spread, rect.top - spread, rect.right + spread, rect.bottom + spread)
+            val a = (46f / i * k).toInt()
+            glow.shader = LinearGradient(tmp.left, tmp.top, tmp.right, tmp.bottom,
+                Color.argb(a, 168, 85, 247), Color.argb(a, 244, 114, 182), Shader.TileMode.CLAMP)
+            canvas.drawRoundRect(tmp, radius + spread, radius + spread, glow)
+        }
+        canvas.restore()
         postInvalidateOnAnimation()
     }
 }

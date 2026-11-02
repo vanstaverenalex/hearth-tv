@@ -86,7 +86,7 @@ class GlassMenu(
                 setOnClickListener { d.dismiss(); item.action() }
                 setOnFocusChangeListener { v, f ->
                     v.background = if (f) android.graphics.drawable.LayerDrawable(
-                        arrayOf(hearthGradient(ctx, 22f, 0.42f), ShimmerRim(ctx, 22f))
+                        arrayOf(hearthGradient(ctx, 22f, 0.42f), rimDrawable(ctx, 22f, true, dark))
                     ) else null
                     (v as LinearLayout).let { r ->
                         val c = if (f) Color.WHITE else ink
