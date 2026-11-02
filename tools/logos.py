@@ -139,6 +139,9 @@ def main():
             continue
         try:
             im = trim(knock_out_white(fetch(src)))
+            # Untouched copy too: some logos convert to one colour better from their original colours.
+            os.makedirs(os.path.join(root, "logos", "raw"), exist_ok=True)
+            fit(im).save(os.path.join(root, "logos", "raw", f"{cid}.png"), optimize=True)
             lum, _ = luminance(im)
             plate = opaque_box(im) and 0.15 < lum < 0.9  # coloured plate: keep as-is
             dark = im if plate else for_dark(im)

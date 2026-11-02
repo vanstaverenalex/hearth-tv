@@ -13,9 +13,10 @@ from PIL import Image, ImageFilter
 
 W, H, PAD = 320, 160, 10
 INK = (11, 23, 38)
+RAW = {"espnu", "mlbn"}  # converted from the untouched original (logos/raw) instead of the colour master
 FORCE = {  # per-logo overrides when the automatic choice is wrong
     "nfln": "cut", "msnow": "cut", "mtv": "cut", "trutv": "cut", "cn": "cut",
-    "tbs": "lum", "food": "lum",
+    "tbs": "lum", "food": "lum", "espnu": "cut", "mlbn": "lum",
     "nick": "shape", "nickjr": "shape", "tnt": "shape", "paramount": "shape", "wzzm": "shape", "bravo": "shape",
 }
 
@@ -76,7 +77,8 @@ if __name__ == "__main__":
     ids = sys.argv[3:] or [c["id"] for c in json.load(open("channels.json"))["channels"]]
     os.makedirs(dst, exist_ok=True)
     for cid in ids:
-        p = os.path.join(src, f"{cid}.png")
+        raw = os.path.join(os.path.dirname(src.rstrip("/")), "raw", f"{cid}.png")
+        p = raw if cid in RAW and os.path.exists(raw) else os.path.join(src, f"{cid}.png")
         if not os.path.exists(p):
             print("missing", cid); continue
         alpha, mode = mono_alpha(Image.open(p), cid)
