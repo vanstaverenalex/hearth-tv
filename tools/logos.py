@@ -15,9 +15,18 @@ UA = "HearthTV-logo-builder/1.0 (https://github.com/vanstaverenalex/hearth-tv)"
 
 
 def fetch(url):
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return Image.open(io.BytesIO(r.read())).convert("RGBA")
+    """Polite download: pause between requests and back off if the host rate-limits us."""
+    import time, urllib.error
+    for attempt in range(5):
+        time.sleep(2.5)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return Image.open(io.BytesIO(r.read())).convert("RGBA")
+        except urllib.error.HTTPError as e:
+            if e.code != 429 or attempt == 4:
+                raise
+            time.sleep(20 * (attempt + 1))
 
 
 def knock_out_white(im):
@@ -74,6 +83,9 @@ def main():
     for ch in data["channels"]:
         cid, src = ch["id"], ch.get("logoSrc")
         if not src or (only and cid not in only):
+            continue
+        done = all(os.path.exists(os.path.join(out, f)) for f in (f"{cid}.png", f"{cid}-light.png"))
+        if done and not only and os.environ.get("FORCE") != "1":
             continue
         try:
             im = trim(knock_out_white(fetch(src)))
