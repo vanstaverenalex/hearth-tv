@@ -47,7 +47,7 @@ class TileAdapter(
         val ctx = parent.context
         val w = ctx.dpi(tileWdp)
         val h = ctx.dpi(tileHdp)
-        val pad = 36f
+        val pad = 44f
         val padPx = ctx.dpi(pad)
 
         val root = FrameLayout(ctx).apply {
@@ -88,7 +88,7 @@ class TileAdapter(
         val holder = Holder(root, glow, card, banner, icon, name)
         root.setOnFocusChangeListener { v, focused ->
             animateScale(v, if (focused) 1.06f else 1f)
-            v.translationZ = if (focused) v.dp(8f) else 0f
+            v.translationZ = if (focused) 1f else 0f   // draw above neighbours; no shadow layer
             glow.show(focused)
             card.foreground = rimDrawable(ctx, radiusDp, focused, dark)
         }

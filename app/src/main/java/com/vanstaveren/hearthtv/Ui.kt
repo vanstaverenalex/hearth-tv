@@ -167,7 +167,7 @@ class GlowView(context: Context, private val radiusDp: Float, private val padDp:
         animate().cancel()
         if (on) {
             visibility = VISIBLE
-            animate().alpha(1f).setDuration(240).setInterpolator(Ease.out).start()
+            animate().alpha(1f).setDuration(260).setStartDelay(0).setInterpolator(Ease.out).start()
         } else {
             animate().alpha(0f).setDuration(180).setInterpolator(Ease.out)
                 .withEndAction { if (alpha == 0f) visibility = INVISIBLE }.start()
@@ -192,9 +192,10 @@ object GlowCache {
             fun p(color: Int, a: Int, blur: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.color = color; alpha = a; maskFilter = BlurMaskFilter(ctx.dp(blur), BlurMaskFilter.Blur.NORMAL)
             }
-            r.set(pad, pad, w - pad, h - pad); c.drawRoundRect(r, rad, rad, p(Color.rgb(200, 100, 230), 80, 40f))
-            r.set(pad - off, pad - off, w - pad - off, h - pad - off); c.drawRoundRect(r, rad, rad, p(Hearth.PURPLE, 175, 20f))
-            r.set(pad + off, pad + off, w - pad + off, h - pad + off); c.drawRoundRect(r, rad, rad, p(Hearth.PINK, 165, 22f))
+            // Blur radii + offsets stay under the padding, so the glow fades to nothing before the bitmap edge.
+            r.set(pad, pad, w - pad, h - pad); c.drawRoundRect(r, rad, rad, p(Color.rgb(200, 100, 230), 70, padDp * 0.62f))
+            r.set(pad - off, pad - off, w - pad - off, h - pad - off); c.drawRoundRect(r, rad, rad, p(Hearth.PURPLE, 170, padDp * 0.42f))
+            r.set(pad + off, pad + off, w - pad + off, h - pad + off); c.drawRoundRect(r, rad, rad, p(Hearth.PINK, 160, padDp * 0.45f))
             b
         }
     }
@@ -225,7 +226,7 @@ fun hearthGradient(ctx: Context, radiusDp: Float, alpha: Float): GradientDrawabl
 
 fun animateScale(v: View, to: Float) {
     v.animate().cancel()
-    v.animate().scaleX(to).scaleY(to).setDuration(if (to > 1f) 260 else 200).setInterpolator(Ease.out).withLayer().start()
+    v.animate().scaleX(to).scaleY(to).setDuration(if (to > 1f) 260 else 200).setStartDelay(0).setInterpolator(Ease.out).start()
 }
 
 @Suppress("unused")

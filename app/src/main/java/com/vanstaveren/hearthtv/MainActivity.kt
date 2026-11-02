@@ -232,7 +232,7 @@ class MainActivity : Activity() {
 
     private fun dockButton(icon: Int, label: String, action: () -> Unit): View {
         val size = 72f
-        val pad = 36f
+        val pad = 44f
         val holder = FrameLayout(this).apply {
             clipChildren = false; isFocusable = true; contentDescription = label
         }
@@ -247,7 +247,7 @@ class MainActivity : Activity() {
         holder.setOnClickListener { action() }
         holder.setOnFocusChangeListener { v, f ->
             animateScale(v, if (f) 1.06f else 1f)
-            v.translationZ = if (f) dp(8f) else 0f
+            v.translationZ = if (f) 1f else 0f
             glow.show(f)
             styleDockButton(face, f)
         }
@@ -293,9 +293,9 @@ class MainActivity : Activity() {
         })
         libAdapter = TileAdapter(repo, 146f, 82f, 18f, 18f, ::open, ::showAppMenu)
         libGrid = RecyclerView(this).apply {
-            layoutManager = GridLayoutManager(this@MainActivity, 5)
+            layoutManager = SmoothGridLayoutManager(this@MainActivity, 5)
             adapter = libAdapter; itemAnimator = null
-            setHasFixedSize(true); setItemViewCacheSize(20)
+            setHasFixedSize(true); setItemViewCacheSize(30)
             clipChildren = false; clipToPadding = false; overScrollMode = View.OVER_SCROLL_NEVER
             setPadding(0, dpi(12f), 0, dpi(60f))
         }
@@ -343,8 +343,9 @@ class MainActivity : Activity() {
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         }
         heroDetail = TextView(this).apply {
-            style(12f, Fonts.body(this@MainActivity, 500), Color.WHITE)
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+            style(11.5f, Fonts.body(this@MainActivity, 500), Color.WHITE)
+            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+            setLineSpacing(dp(2f), 1f)
         }
         hero.addView(metaRow)
         hero.addView(heroTitle, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(7f) })
@@ -373,7 +374,7 @@ class MainActivity : Activity() {
         }
         guide.addView(guideStatus, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER).apply { topMargin = dpi(80f) })
         guideCredit = TextView(this).apply {
-            text = "Listings: TVmaze · Games: ESPN"
+            text = "Listings: Gracenote · TVmaze · ESPN"
             style(7f, Fonts.body(this@MainActivity, 600), Color.WHITE)
         }
         guide.addView(guideCredit, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
@@ -416,6 +417,7 @@ class MainActivity : Activity() {
         libHint.setTextColor(if (dark) Color.argb(215, 255, 255, 255) else Hearth.INK_DARK)
         libHint.background = GlassDrawable(this, 14f, dark)
         libBar.dark = dark; guideBar.dark = dark; guideView.dark = dark
+        libGrid.polishScrolling(dark)
         modeBar.background = GlassDrawable(this, 19f, dark)
         styleModeBar()
 
@@ -631,7 +633,7 @@ class MainActivity : Activity() {
             val range = "${heroFmt.format(Date(p.start))} – ${heroFmtA.format(Date(p.end))}"
             heroMeta.text = if (airing) "${ch.name}  ·  $range  ·  ${(p.end - now) / 60_000} min left" else "${ch.name}  ·  $range"
             heroTitle.text = p.title
-            heroDetail.text = p.detail.ifBlank { " " }
+            heroDetail.text = listOf(p.detail, p.desc).filter { it.isNotBlank() }.joinToString("  ·  ").ifBlank { " " }
         }
         guideHint.text = if (ch.hulu != null) "OK  Watch on Hulu      ☰  Favorite" else "OK  Open Hulu      ☰  Favorite"
     }

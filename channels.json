@@ -1,5 +1,5 @@
 {
- "_about": "Hulu + Live TV lineup for the Hearth TV guide. category groups channels into the guide's tabs. aliases match TVmaze network names and ESPN broadcast names. logoSrc = original logo (iptv-org database); the 'Channel logos' GitHub Action normalizes them into logos/<id>.png. hulu = the channel's hulu.com/watch link; blank opens the Hulu app.",
+ "_about": "Hulu + Live TV lineup for the Hearth TV guide. category groups channels into the guide's tabs. aliases match TVmaze network names and ESPN broadcast names. logoSrc = original logo (iptv-org database); the 'Channel logos' GitHub Action normalizes them into logos/<id>.png. hulu = the channel's hulu.com/watch link; blank opens the Hulu app. gn = Gracenote station call signs (DIRECTV Grand Rapids lineup) used for full listings.",
  "logos": "https://raw.githubusercontent.com/vanstaverenalex/hearth-tv/main/logos/",
  "categories": [
   {
@@ -53,7 +53,11 @@
     "WOTV"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ABC-2021-LOGO.svg/960px-ABC-2021-LOGO.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "WOTVDT",
+    "WOTV"
+   ]
   },
   {
    "id": "cbs",
@@ -64,7 +68,11 @@
     "WWMT"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/CBS_logo_%282020%29.svg/960px-CBS_logo_%282020%29.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "WWMTDT",
+    "WWMT"
+   ]
   },
   {
    "id": "nbc",
@@ -75,7 +83,11 @@
     "WOOD"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/NBC_logo_2022_%28vertical%29.svg/960px-NBC_logo_2022_%28vertical%29.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "WOODDT",
+    "WOOD"
+   ]
   },
   {
    "id": "fox",
@@ -87,7 +99,11 @@
     "WXMI"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/FOX_wordmark-red.svg/960px-FOX_wordmark-red.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "WXMIDT",
+    "WXMI"
+   ]
   },
   {
    "id": "cw",
@@ -98,7 +114,10 @@
     "CW"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/The_CW_2024.svg/960px-The_CW_2024.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "WOTVDT2"
+   ]
   },
   {
    "id": "espn",
@@ -108,7 +127,11 @@
     "ESPN"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/960px-ESPN_wordmark.svg.png",
-   "hulu": "https://www.hulu.com/watch/2c27a816-4404-4daf-90e0-5cf434e7e0c9"
+   "hulu": "https://www.hulu.com/watch/2c27a816-4404-4daf-90e0-5cf434e7e0c9",
+   "gn": [
+    "ESPNHD",
+    "ESPN"
+   ]
   },
   {
    "id": "espn2",
@@ -119,7 +142,11 @@
     "ESPN 2"
    ],
    "logoSrc": "https://i.imgur.com/00tsvjE.png",
-   "hulu": "https://www.hulu.com/watch/d6115f15-959f-4e42-8cb5-7ab54b966c02"
+   "hulu": "https://www.hulu.com/watch/d6115f15-959f-4e42-8cb5-7ab54b966c02",
+   "gn": [
+    "ESPN2HD",
+    "ESPN2"
+   ]
   },
   {
    "id": "espnu",
@@ -129,7 +156,11 @@
     "ESPNU"
    ],
    "logoSrc": "https://i.imgur.com/HiBrysh.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "ESPNUHD",
+    "ESPNU"
+   ]
   },
   {
    "id": "espnews",
@@ -140,7 +171,11 @@
     "ESPNews"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/ESPNews.svg/960px-ESPNews.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "ESPNWHD",
+    "ESPNEWS"
+   ]
   },
   {
    "id": "secn",
@@ -152,7 +187,11 @@
     "SEC"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/SEC_Network_logo.svg/960px-SEC_Network_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "SECH",
+    "SEC"
+   ]
   },
   {
    "id": "accn",
@@ -163,7 +202,11 @@
     "ACCN"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/ACC_Network_ESPN_logo.svg/960px-ACC_Network_ESPN_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "ACC",
+    "ACCSD"
+   ]
   },
   {
    "id": "btn",
@@ -175,7 +218,11 @@
     "B1G"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/en/thumb/3/39/Big_Ten_Network_Logo.svg/960px-Big_Ten_Network_Logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "BIG10HD",
+    "BIGTEN"
+   ]
   },
   {
    "id": "fs1",
@@ -186,7 +233,11 @@
     "Fox Sports 1"
    ],
    "logoSrc": "https://i.imgur.com/O9BapV9.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FS1HD",
+    "FS1"
+   ]
   },
   {
    "id": "fs2",
@@ -197,7 +248,11 @@
     "Fox Sports 2"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/FS2_logo_2015.svg/960px-FS2_logo_2015.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FS2HD",
+    "FS2"
+   ]
   },
   {
    "id": "nfln",
@@ -208,7 +263,10 @@
     "NFL NET"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/en/thumb/8/8f/NFL_Network_logo.svg/960px-NFL_Network_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "NFLNET"
+   ]
   },
   {
    "id": "golf",
@@ -219,7 +277,11 @@
     "GOLF"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Golf_Channel_logo_2025.svg/960px-Golf_Channel_logo_2025.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "GOLFHD",
+    "GOLF"
+   ]
   },
   {
    "id": "disney",
@@ -229,7 +291,11 @@
     "Disney Channel"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/2024_Disney_Channel_text_logo.svg/960px-2024_Disney_Channel_text_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "DISNHD",
+    "DISN"
+   ]
   },
   {
    "id": "disneyjr",
@@ -241,7 +307,10 @@
     "Disney Jr"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/2024_Disney_Jr._Logo.svg/960px-2024_Disney_Jr._Logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "DJCHHD"
+   ]
   },
   {
    "id": "disneyxd",
@@ -251,7 +320,11 @@
     "Disney XD"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/2015_Disney_XD_logo.svg/960px-2015_Disney_XD_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "DXDHD",
+    "DXD"
+   ]
   },
   {
    "id": "nick",
@@ -262,7 +335,11 @@
     "Nick"
    ],
    "logoSrc": "https://i.imgur.com/E84jnP8.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "NIKHD",
+    "NIK"
+   ]
   },
   {
    "id": "nickjr",
@@ -273,7 +350,10 @@
     "Nick Jr"
    ],
    "logoSrc": "https://i.imgur.com/KT4tdQs.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "NICJRHD"
+   ]
   },
   {
    "id": "nicktoons",
@@ -283,7 +363,10 @@
     "Nicktoons"
    ],
    "logoSrc": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/be/Nicktoons_Logo_2023.svg/960px-Nicktoons_Logo_2023.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "NIKTON"
+   ]
   },
   {
    "id": "teennick",
@@ -293,7 +376,10 @@
     "TeenNick"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/TeenNick_logo_2023_%28outline%29.svg/1280px-TeenNick_logo_2023_%28outline%29.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "TNCK"
+   ]
   },
   {
    "id": "cn",
@@ -304,7 +390,11 @@
     "Adult Swim"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Cartoon_Network_2010_logo.svg/960px-Cartoon_Network_2010_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "TOONHD",
+    "TOON"
+   ]
   },
   {
    "id": "boomerang",
@@ -314,7 +404,10 @@
     "Boomerang"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Boomerang_2014_logo.svg/960px-Boomerang_2014_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "BOOM"
+   ]
   },
   {
    "id": "free",
@@ -324,7 +417,10 @@
     "Freeform"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/Freeform_2022_pink.svg/1920px-Freeform_2022_pink.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FREFMHD"
+   ]
   },
   {
    "id": "cnn",
@@ -334,7 +430,11 @@
     "CNN"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/CNN.svg/960px-CNN.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "CNNHD",
+    "CNN"
+   ]
   },
   {
    "id": "foxnews",
@@ -346,7 +446,11 @@
     "FNC"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FNCHD",
+    "FNC"
+   ]
   },
   {
    "id": "msnow",
@@ -357,7 +461,10 @@
     "MS NOW"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/MS_NOW_logo.svg/960px-MS_NOW_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "MSNOWHD"
+   ]
   },
   {
    "id": "cnbc",
@@ -367,7 +474,10 @@
     "CNBC"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/CNBC_2025.svg/960px-CNBC_2025.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "CNBCHD"
+   ]
   },
   {
    "id": "foxbiz",
@@ -379,7 +489,11 @@
     "FBN"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Fox_Business.svg/960px-Fox_Business.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FBNHD",
+    "FBN"
+   ]
   },
   {
    "id": "hln",
@@ -389,7 +503,11 @@
     "HLN"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/HLN_%28TV_network%29_2017_logo.svg/960px-HLN_%28TV_network%29_2017_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "HLNHD",
+    "HLN"
+   ]
   },
   {
    "id": "weather",
@@ -400,7 +518,10 @@
     "Weather Channel"
    ],
    "logoSrc": "https://i.imgur.com/PIaNjfa.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "WEATHHD"
+   ]
   },
   {
    "id": "tnt",
@@ -410,7 +531,11 @@
     "TNT"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/TNT_Logo_2016.svg/960px-TNT_Logo_2016.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "TNTHD",
+    "TNT"
+   ]
   },
   {
    "id": "tbs",
@@ -420,7 +545,11 @@
     "TBS"
    ],
    "logoSrc": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2c/TBS_2020.svg/960px-TBS_2020.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "TBSHD",
+    "TBS"
+   ]
   },
   {
    "id": "trutv",
@@ -431,7 +560,11 @@
     "TRU"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/TruTV_2014.svg/960px-TruTV_2014.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "TRUTVHD",
+    "TRUTV"
+   ]
   },
   {
    "id": "usa",
@@ -442,7 +575,11 @@
     "USA"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/USA_Network_logo_%282016%29.svg/960px-USA_Network_logo_%282016%29.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "USAHD",
+    "USA"
+   ]
   },
   {
    "id": "fx",
@@ -453,7 +590,11 @@
     "FX Networks"
    ],
    "logoSrc": "https://i.ibb.co/35wTxjfF/IMG-2451.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FXHD",
+    "FX"
+   ]
   },
   {
    "id": "fxx",
@@ -463,7 +604,11 @@
     "FXX"
    ],
    "logoSrc": "https://i.ibb.co/Q7jLGRLN/IMG-2452.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FXXHD",
+    "FXX"
+   ]
   },
   {
    "id": "bravo",
@@ -473,7 +618,11 @@
     "Bravo"
    ],
    "logoSrc": "https://i.imgur.com/JmTIRLF.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "BRAVOHD",
+    "BRAVO"
+   ]
   },
   {
    "id": "e",
@@ -483,7 +632,10 @@
     "E!"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/E%21_Logo_Flat_2012.svg/960px-E%21_Logo_Flat_2012.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "EHD"
+   ]
   },
   {
    "id": "syfy",
@@ -494,7 +646,11 @@
     "SYFY"
    ],
    "logoSrc": "https://i.imgur.com/4fMWhUE.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "SYFYHD",
+    "SYFY"
+   ]
   },
   {
    "id": "oxygen",
@@ -505,7 +661,11 @@
     "Oxygen True Crime"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Oxygen_TV_%282017_Logo%29.svg/960px-Oxygen_TV_%282017_Logo%29.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "OXYGNHD",
+    "OXYGEN"
+   ]
   },
   {
    "id": "ae",
@@ -515,7 +675,11 @@
     "A&E"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/A%26E_Network_logo.svg/960px-A%26E_Network_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "AETVHD",
+    "AETV"
+   ]
   },
   {
    "id": "life",
@@ -525,7 +689,11 @@
     "Lifetime"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Logo_Lifetime_2020.svg/960px-Logo_Lifetime_2020.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "LIFEHD",
+    "LIFE"
+   ]
   },
   {
    "id": "comedy",
@@ -535,7 +703,11 @@
     "Comedy Central"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Comedy_Central_2018.svg/960px-Comedy_Central_2018.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "CCHDP",
+    "COMEDY"
+   ]
   },
   {
    "id": "paramount",
@@ -545,7 +717,11 @@
     "Paramount Network"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/Paramount_Network.svg/960px-Paramount_Network.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "PARHD",
+    "PAR"
+   ]
   },
   {
    "id": "mtv",
@@ -555,7 +731,10 @@
     "MTV"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/MTV_2021_%28brand_version%29.svg/960px-MTV_2021_%28brand_version%29.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "MTVPHD"
+   ]
   },
   {
    "id": "bet",
@@ -565,7 +744,10 @@
     "BET"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/BET-2021Logo.svg/960px-BET-2021Logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "BETHDP"
+   ]
   },
   {
    "id": "vh1",
@@ -575,7 +757,10 @@
     "VH1"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/VH1_logonew.svg/960px-VH1_logonew.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "VH1HD"
+   ]
   },
   {
    "id": "cmt",
@@ -585,7 +770,10 @@
     "CMT"
    ],
    "logoSrc": "https://i.imgur.com/S7DOpdY.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "CMTVHD"
+   ]
   },
   {
    "id": "tvland",
@@ -595,7 +783,10 @@
     "TV Land"
    ],
    "logoSrc": "https://i.imgur.com/VNNS4mF.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "TVLNDHD"
+   ]
   },
   {
    "id": "fxm",
@@ -605,7 +796,11 @@
     "FXM"
    ],
    "logoSrc": "https://cdn1.edgedatg.com/aws/v2/fxnow/Config/video/9416865/8be9fa5d44c8ad685559379159e28ae9/284x160-Q75_8be9fa5d44c8ad685559379159e28ae9.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FXMHD",
+    "FXM"
+   ]
   },
   {
    "id": "lmn",
@@ -617,7 +812,11 @@
     "Lifetime Movies"
    ],
    "logoSrc": "https://i.imgur.com/BWmqYTO.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "LMNHD",
+    "LMN"
+   ]
   },
   {
    "id": "hgtv",
@@ -627,7 +826,11 @@
     "HGTV"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/HGTV_US_Logo_2015.svg/960px-HGTV_US_Logo_2015.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "HGTVD",
+    "HGTV"
+   ]
   },
   {
    "id": "food",
@@ -637,7 +840,11 @@
     "Food Network"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Food_Network_New_Logo.png/960px-Food_Network_New_Logo.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FOODHD",
+    "FOOD"
+   ]
   },
   {
    "id": "cooking",
@@ -647,7 +854,11 @@
     "Cooking Channel"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Cooking_Channel.svg/960px-Cooking_Channel.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "COOKHD",
+    "COOK"
+   ]
   },
   {
    "id": "magnolia",
@@ -657,7 +868,11 @@
     "Magnolia Network"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Magnolia_Network.svg/960px-Magnolia_Network.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "MAGNHD",
+    "MAGN"
+   ]
   },
   {
    "id": "tlc",
@@ -667,7 +882,10 @@
     "TLC"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/TLC_Logo.svg/960px-TLC_Logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "TLCHD"
+   ]
   },
   {
    "id": "travel",
@@ -677,7 +895,10 @@
     "Travel Channel"
    ],
    "logoSrc": "https://i.imgur.com/RmHGeP1.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "TRAVHD"
+   ]
   },
   {
    "id": "own",
@@ -688,7 +909,10 @@
     "Oprah Winfrey Network"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/OWN_2011_logo.svg/960px-OWN_2011_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "OWNPA"
+   ]
   },
   {
    "id": "disc",
@@ -699,7 +923,10 @@
     "Discovery Channel"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/2019_Discovery_logo.svg/960px-2019_Discovery_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "DSCHD"
+   ]
   },
   {
    "id": "hist",
@@ -710,7 +937,11 @@
     "HISTORY"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/History_%282021%29.svg/500px-History_%282021%29.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "HSTRYHD",
+    "HISTORY"
+   ]
   },
   {
    "id": "natgeo",
@@ -721,7 +952,10 @@
     "National Geographic Channel"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/Natgeologo.svg/960px-Natgeologo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "NGCHD"
+   ]
   },
   {
    "id": "natgeowild",
@@ -732,7 +966,10 @@
     "National Geographic Wild"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/National_Geographic_Wild_logo.svg/960px-National_Geographic_Wild_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "NGWIHD"
+   ]
   },
   {
    "id": "animal",
@@ -742,7 +979,10 @@
     "Animal Planet"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/2018_Animal_Planet_logo.svg/960px-2018_Animal_Planet_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "APLHD"
+   ]
   },
   {
    "id": "id",
@@ -753,7 +993,10 @@
     "ID"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/InvestigationDiscoveryLogo2020.svg/960px-InvestigationDiscoveryLogo2020.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "IDHD"
+   ]
   },
   {
    "id": "fyi",
@@ -763,7 +1006,17 @@
     "FYI"
    ],
    "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/FYI%2C_logo.svg/960px-FYI%2C_logo.svg.png",
-   "hulu": ""
+   "hulu": "",
+   "gn": [
+    "FYIHD",
+    "FYISD"
+   ]
   }
- ]
+ ],
+ "gracenote": {
+  "lineupId": "USA-DITV563-X",
+  "headendId": "DITV563",
+  "postalCode": "49009",
+  "device": "X"
+ }
 }

@@ -32,7 +32,11 @@ object Guide {
         val hulu: String?,
         val category: String,
         val logo: String?,
+        val gn: List<String> = emptyList(),
     )
+
+    data class GnLineup(val lineupId: String, val headendId: String, val postalCode: String, val device: String)
+    @Volatile private var gnLineup: GnLineup? = null
 
     data class Category(val id: String, val name: String)
 
@@ -45,6 +49,10 @@ object Guide {
         val detail: String,
         val sport: Boolean = false,
         val gap: Boolean = false,
+        val isNew: Boolean = false,
+        val isLive: Boolean = false,
+        val desc: String = "",
+        val rich: Boolean = false,   // came from Gracenote (best data)
     )
 
     data class Lineup(val channels: List<Channel>, val programs: Map<String, List<Program>>, val loadedAt: Long)
@@ -67,6 +75,9 @@ object Guide {
         return try {
             val root = JSONObject(text)
             val logoBase = root.optString("logos", "")
+            root.optJSONObject("gracenote")?.let { g ->
+                gnLineup = GnLineup(g.getString("lineupId"), g.getString("headendId"), g.getString("postalCode"), g.optString("device", "X"))
+            }
             root.optJSONArray("categories")?.let { c ->
                 categories = (0 until c.length()).map { Category(c.getJSONObject(it).getString("id"), c.getJSONObject(it).getString("name")) }
             }
@@ -81,6 +92,7 @@ object Guide {
                     hulu = o.optString("hulu", "").ifBlank { null },
                     category = o.optString("category", "entertainment"),
                     logo = if (logoBase.isNotBlank()) logoBase + o.getString("id") else null,
+                    gn = o.optJSONArray("gn")?.let { g -> (0 until g.length()).map { g.getString(it) } } ?: emptyList(),
                 )
             }
         } catch (e: Exception) { Log.w(TAG, "channels: ${e.message}"); emptyList() }
@@ -172,8 +184,69 @@ object Guide {
     }
 
     /** Build the full guide from now back 30 minutes to about 9 hours ahead. Call off the main thread. */
+    private val isoZ = SimpleDateFormat("yyyy-MM-dd'T'HH:mmX", Locale.US)
+
+    /**
+     * Full listings from Gracenote's public TV listings grid (the data behind most cable guides):
+     * episode titles, descriptions, NEW/LIVE flags. Fetched directly by the TV, like a browser would.
+     */
+    private fun gracenote(channels: List<Channel>, into: MutableMap<String, MutableList<Program>>): Int {
+        val g = gnLineup ?: return 0
+        val byCall = HashMap<String, String>()
+        channels.forEach { c -> c.gn.forEach { byCall.putIfAbsent(it, c.id) } }
+        if (byCall.isEmpty()) return 0
+        var count = 0
+        val start = (System.currentTimeMillis() / 1000 / 1800) * 1800 - 1800
+        val got = HashSet<String>()
+        for (offset in listOf(0L, 6 * 3600L)) {
+            val url = "https://tvlistings.gracenote.com/api/grid?lineupId=${g.lineupId}&timespan=6&headendId=${g.headendId}" +
+                "&country=USA&timezone=&device=${g.device}&postalCode=${g.postalCode}&isOverride=true&time=${start + offset}" +
+                "&pref=16%2C128&userId=-&aid=orbebb&languagecode=en-us"
+            val json = try {
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10000; readTimeout = 20000
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 11; AFT) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
+                    setRequestProperty("Accept", "application/json")
+                }
+                conn.inputStream.bufferedReader().use { it.readText() }.also { conn.disconnect() }
+            } catch (e: Exception) { Log.w(TAG, "gracenote: ${e.message}"); break }
+            val arr = try { JSONObject(json).getJSONArray("channels") } catch (e: Exception) { break }
+            for (i in 0 until arr.length()) {
+                val c = arr.getJSONObject(i)
+                val id = byCall[c.optString("callSign")] ?: continue
+                // Several call signs can map to one channel (HD/SD); keep the first one we see per window.
+                val key = "$id@$offset"
+                if (!got.add(key)) continue
+                val evs = c.optJSONArray("events") ?: continue
+                for (k in 0 until evs.length()) {
+                    val e = evs.getJSONObject(k)
+                    val p = e.optJSONObject("program") ?: continue
+                    val st = try { isoZ.parse(e.getString("startTime"))?.time } catch (x: Exception) { null } ?: continue
+                    val en = try { isoZ.parse(e.getString("endTime"))?.time } catch (x: Exception) { null } ?: continue
+                    val flags = e.optJSONArray("flag")?.let { f -> (0 until f.length()).map { f.getString(it) } } ?: emptyList()
+                    val season = p.optString("season", "").takeIf { it.isNotBlank() && it != "null" }
+                    val ep = p.optString("episode", "").takeIf { it.isNotBlank() && it != "null" }
+                    val epTitle = p.optString("episodeTitle", "").takeIf { it.isNotBlank() && it != "null" }
+                    val detail = buildString {
+                        if (season != null && ep != null) append("S$season E$ep")
+                        if (epTitle != null) { if (isNotEmpty()) append("  ·  "); append(epTitle) }
+                    }
+                    into.getOrPut(id) { ArrayList() } += Program(
+                        st, en, p.optString("title"), detail,
+                        isNew = "New" in flags || "Premiere" in flags, isLive = "Live" in flags,
+                        desc = p.optString("shortDesc", "").takeIf { it != "null" } ?: "", rich = true,
+                    )
+                    count++
+                }
+            }
+        }
+        return count
+    }
+
     fun load(ctx: Context): Lineup {
         val channels = loadChannels(ctx)
+        val rich = HashMap<String, MutableList<Program>>()
+        val gnCount = try { gracenote(channels, rich) } catch (e: Exception) { 0 }
         val raw = HashMap<String, MutableList<Program>>()
         val cal = Calendar.getInstance()
         val today = cal.time
@@ -181,16 +254,21 @@ object Guide {
         val tomorrow = cal.time
         cal.add(Calendar.DAY_OF_YEAR, -2)
         val yesterday = cal.time
-        for (d in listOf(yesterday, today, tomorrow)) tvmaze(d, channels, raw)
-        // ESPN days are US-Eastern; ask for today and tomorrow (UTC games after 8pm ET land on "tomorrow").
-        for (d in listOf(today, tomorrow)) espn(d, channels, raw)
+        // Only reach for the backup sources when Gracenote didn't cover every channel.
+        if (channels.any { rich[it.id].isNullOrEmpty() }) {
+            for (d in listOf(yesterday, today, tomorrow)) tvmaze(d, channels, raw)
+            // ESPN days are US-Eastern; ask for today and tomorrow (UTC games after 8pm ET land on "tomorrow").
+            for (d in listOf(today, tomorrow)) espn(d, channels, raw)
+        }
 
         val now = System.currentTimeMillis()
         val from = now - 60 * 60_000L
         val to = now + 10 * 3600_000L
         val out = HashMap<String, List<Program>>()
         for (ch in channels) {
-            val list = (raw[ch.id] ?: ArrayList()).filter { it.end > from && it.start < to }
+            // Gracenote is complete for a channel when it has it; otherwise fall back to TVmaze + ESPN.
+            val best = rich[ch.id]?.takeIf { it.isNotEmpty() }
+            val list = (best ?: raw[ch.id] ?: ArrayList()).filter { it.end > from && it.start < to }
             // Games win over regular listings in the same slot; drop exact duplicates.
             val sportsList = list.filter { it.sport }.sortedBy { it.start }.distinctBy { it.start to it.title }
             val shows = list.filter { !it.sport }.filter { p -> sportsList.none { s -> p.start < s.end && p.end > s.start } }
@@ -207,7 +285,7 @@ object Guide {
             if (to - t > 0) filled += Program(t, to, "Live on ${ch.name}", "", gap = true)
             out[ch.id] = filled
         }
-        Log.i(TAG, "guide: ${channels.size} channels, ${raw.values.sumOf { it.size }} raw listings")
+        Log.i(TAG, "guide: ${channels.size} channels, gracenote=$gnCount, fallback=${raw.values.sumOf { it.size }}")
         return Lineup(channels, out, now)
     }
 
