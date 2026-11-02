@@ -82,7 +82,7 @@ class MainActivity : Activity() {
 
     private lateinit var library: FrameLayout
     private lateinit var libTitle: TextView
-    private lateinit var libGrid: RecyclerView
+    private lateinit var libGrid: GlideGrid
     private lateinit var libAdapter: TileAdapter
     private lateinit var libBar: SegmentedBar
     private lateinit var libHint: TextView
@@ -345,14 +345,21 @@ class MainActivity : Activity() {
             rightMargin = dpi(70f); topMargin = dpi(40f)
         })
         libAdapter = TileAdapter(repo, 146f, 82f, 18f, 18f, ::open, ::showAppMenu)
-        libGrid = RecyclerView(this).apply {
+        // Full-screen grid: the 5 columns sit centered via padding, so focus glows have room on every
+        // side, and rows fade out under the header instead of being cut by the grid's edge.
+        libGrid = GlideGrid(this).apply {
             layoutManager = SmoothGridLayoutManager(this@MainActivity, 5)
             adapter = libAdapter; itemAnimator = null
             setHasFixedSize(true); setItemViewCacheSize(30)
-            clipChildren = false; clipToPadding = false; overScrollMode = View.OVER_SCROLL_NEVER
-            setPadding(0, dpi(12f), 0, dpi(60f))
+            clipChildren = false; clipToPadding = false
+            fadeTopStart = dp(78f); fadeTopEnd = dp(108f)
+            addOnLayoutChangeListener { v, l, _, r, _, _, _, _, _ ->
+                val side = maxOf(0, ((r - l) - dpi((146f + 18f) * 5)) / 2)
+                if (v.paddingLeft != side) v.setPadding(side, dpi(104f), side, dpi(70f))
+            }
+            setPadding(0, dpi(104f), 0, dpi(70f))
         }
-        library.addView(libGrid, FrameLayout.LayoutParams(dpi((146f + 18f) * 5), -1, Gravity.CENTER_HORIZONTAL).apply { topMargin = dpi(92f) })
+        library.addView(libGrid, 0, FrameLayout.LayoutParams(-1, -1))
         libHint = TextView(this).apply {
             text = "☰  Pin, reorder or hide"; gravity = Gravity.CENTER
             style(10f, Fonts.body(this@MainActivity, 600), Color.argb(215, 255, 255, 255))
@@ -450,7 +457,7 @@ class MainActivity : Activity() {
         libHint.setTextColor(if (dark) Color.argb(215, 255, 255, 255) else Hearth.INK_DARK)
         libHint.background = GlassDrawable(this, 14f, dark)
         libBar.dark = dark; guideBar.dark = dark; guideView.dark = dark
-        libGrid.polishScrolling(dark)
+        libGrid.dark = dark
         modeBar.background = GlassDrawable(this, 19f, dark)
         styleModeBar()
 
