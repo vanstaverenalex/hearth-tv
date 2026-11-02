@@ -21,8 +21,6 @@ Write-Host "Installing the latest Hearth TV..."
 $apk = Join-Path $dir "HearthTV.apk"
 Invoke-WebRequest -UseBasicParsing "https://github.com/vanstaverenalex/hearth-tv/releases/latest/download/HearthTV.apk" -OutFile $apk
 & $adb -s $target install -r $apk | Out-Host
-Shell "settings put secure enabled_accessibility_services com.vanstaveren.hearthtv/com.vanstaveren.hearthtv.HomeWatcher" | Out-Null
-Shell "settings put secure accessibility_enabled 1" | Out-Null
 
 $app = "com.vanstaveren.hearthtv/.MainActivity"
 function Snap([string]$name) {
