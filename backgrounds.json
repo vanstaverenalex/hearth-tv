@@ -3,471 +3,184 @@
  "release": "https://github.com/vanstaverenalex/hearth-tv/releases/download/backgrounds/",
  "clips": [
   {
-   "id": "fireside",
-   "v": 1,
-   "kind": "cozy",
-   "times": [
-    "night",
-    "golden"
-   ],
-   "seasons": [
-    "fall",
-    "winter"
-   ],
-   "weather": [
-    "any"
-   ],
-   "src": "https://videos.pexels.com/video-files/26583810/11964989_3840_2160_24fps.mp4"
-  },
-  {
    "id": "fireplace-glow",
    "v": 1,
-   "kind": "cozy",
-   "times": [
-    "night"
-   ],
-   "seasons": [
-    "fall",
-    "winter",
-    "spring"
-   ],
-   "weather": [
-    "any"
-   ],
    "src": "https://videos.pexels.com/video-files/11751758/11751758-uhd_3840_2160_25fps.mp4"
-  },
-  {
-   "id": "candle-trio",
-   "v": 1,
-   "kind": "cozy",
-   "times": [
-    "night"
-   ],
-   "seasons": [
-    "any"
-   ],
-   "weather": [
-    "any"
-   ],
-   "src": "https://videos.pexels.com/video-files/6032544/6032544-uhd_3840_2160_25fps.mp4"
   },
   {
    "id": "string-lights",
    "v": 1,
-   "kind": "lights",
-   "times": [
-    "night"
-   ],
-   "seasons": [
-    "spring",
-    "summer",
-    "fall"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/30050650/12889816_3840_2160_24fps.mp4"
   },
   {
    "id": "tree-lights-bokeh",
    "v": 1,
-   "kind": "lights",
-   "times": [
-    "night",
-    "golden"
-   ],
-   "seasons": [
-    "winter"
-   ],
-   "weather": [
-    "any"
-   ],
    "src": "https://videos.pexels.com/video-files/35282426/14947041_3840_2160_24fps.mp4"
   },
   {
    "id": "christmas-lights",
    "v": 1,
-   "kind": "lights",
-   "times": [
-    "night"
-   ],
-   "seasons": [
-    "winter"
-   ],
-   "weather": [
-    "any"
-   ],
    "src": "https://videos.pexels.com/video-files/10614367/10614367-uhd_3840_2160_24fps.mp4"
   },
   {
    "id": "tulips-colorful",
    "v": 1,
-   "kind": "flowers",
-   "times": [
-    "day",
-    "golden"
-   ],
-   "seasons": [
-    "spring"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/12657350/12657350-uhd_3840_2160_30fps.mp4"
   },
   {
    "id": "tulip-rows",
    "v": 1,
-   "kind": "flowers",
-   "times": [
-    "dawn",
-    "day"
-   ],
-   "seasons": [
-    "spring"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/12614657/12614657-uhd_3840_2160_30fps.mp4"
   },
   {
    "id": "cherry-blossom-sky",
    "v": 1,
-   "kind": "flowers",
-   "times": [
-    "day",
-    "golden"
-   ],
-   "seasons": [
-    "spring"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/31563406/13451630_3840_2160_25fps.mp4"
   },
   {
    "id": "wildflower-meadow",
    "v": 1,
-   "kind": "flowers",
-   "times": [
-    "day",
-    "golden"
-   ],
-   "seasons": [
-    "spring",
-    "summer"
-   ],
-   "weather": [
-    "clear"
-   ],
    "src": "https://videos.pexels.com/video-files/31289523/13360106_3840_2160_30fps.mp4"
   },
   {
    "id": "sunflowers-wind",
    "v": 1,
-   "kind": "flowers",
-   "times": [
-    "day",
-    "golden"
-   ],
-   "seasons": [
-    "summer"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/12741976/12741976-uhd_3840_2160_30fps.mp4"
   },
   {
    "id": "sunflower-field",
    "v": 1,
-   "kind": "flowers",
-   "times": [
-    "day"
-   ],
-   "seasons": [
-    "summer"
-   ],
-   "weather": [
-    "clear"
-   ],
    "src": "https://videos.pexels.com/video-files/35670233/15115560_3840_2160_25fps.mp4"
   },
   {
    "id": "lavender-breeze",
    "v": 1,
-   "kind": "flowers",
-   "times": [
-    "day",
-    "golden"
-   ],
-   "seasons": [
-    "summer"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/8858842/8858842-uhd_3840_2160_30fps.mp4"
   },
   {
    "id": "turquoise-waves",
    "v": 1,
-   "kind": "water",
-   "times": [
-    "day"
-   ],
-   "seasons": [
-    "summer",
-    "spring"
-   ],
-   "weather": [
-    "clear"
-   ],
    "src": "https://videos.pexels.com/video-files/9319578/9319578-uhd_4096_2160_30fps.mp4"
   },
   {
    "id": "sparkling-ocean",
    "v": 1,
-   "kind": "water",
-   "times": [
-    "day"
-   ],
-   "seasons": [
-    "summer"
-   ],
-   "weather": [
-    "clear"
-   ],
    "src": "https://videos.pexels.com/video-files/31981973/13628423_3840_2160_30fps.mp4"
   },
   {
    "id": "sparkle-ripples",
    "v": 1,
-   "kind": "water",
-   "times": [
-    "day",
-    "golden"
-   ],
-   "seasons": [
-    "spring",
-    "summer",
-    "fall"
-   ],
-   "weather": [
-    "clear"
-   ],
    "src": "https://videos.pexels.com/video-files/32707373/13943704_3840_2160_25fps.mp4"
   },
   {
    "id": "blue-pool",
    "v": 1,
-   "kind": "water",
-   "times": [
-    "day"
-   ],
-   "seasons": [
-    "summer"
-   ],
-   "weather": [
-    "clear"
-   ],
    "src": "https://videos.pexels.com/video-files/36468001/15463732_3840_2160_30fps.mp4"
   },
   {
    "id": "jungle-waterfall",
    "v": 1,
-   "kind": "water",
-   "times": [
-    "dawn",
-    "day"
-   ],
-   "seasons": [
-    "spring",
-    "summer"
-   ],
-   "weather": [
-    "clear",
-    "cloudy",
-    "fog"
-   ],
    "src": "https://videos.pexels.com/video-files/28599942/12430349_3840_2160_25fps.mp4"
   },
   {
    "id": "tropical-foliage",
    "v": 1,
-   "kind": "leaves",
-   "times": [
-    "dawn",
-    "day"
-   ],
-   "seasons": [
-    "spring",
-    "summer"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/30093035/12906708_3840_2160_25fps.mp4"
   },
   {
    "id": "sunlit-spring-leaves",
    "v": 1,
-   "kind": "leaves",
-   "times": [
-    "dawn",
-    "day"
-   ],
-   "seasons": [
-    "spring",
-    "summer"
-   ],
-   "weather": [
-    "clear",
-    "fog"
-   ],
    "src": "https://videos.pexels.com/video-files/34575505/14651248_3840_2160_25fps.mp4"
   },
   {
    "id": "golden-wheat",
    "v": 1,
-   "kind": "fields",
-   "times": [
-    "golden",
-    "day"
-   ],
-   "seasons": [
-    "summer",
-    "fall"
-   ],
-   "weather": [
-    "clear"
-   ],
    "src": "https://videos.pexels.com/video-files/30511075/13071907_3840_2160_30fps.mp4"
   },
   {
    "id": "maple-sunshine",
    "v": 1,
-   "kind": "autumn",
-   "times": [
-    "day",
-    "golden"
-   ],
-   "seasons": [
-    "fall"
-   ],
-   "weather": [
-    "clear"
-   ],
    "src": "https://videos.pexels.com/video-files/34291548/14527232_3840_2160_30fps.mp4"
   },
   {
    "id": "autumn-blue-sky",
    "v": 1,
-   "kind": "autumn",
-   "times": [
-    "day"
-   ],
-   "seasons": [
-    "fall"
-   ],
-   "weather": [
-    "clear"
-   ],
    "src": "https://videos.pexels.com/video-files/34715068/14715344_3840_2160_30fps.mp4"
   },
   {
    "id": "red-maple",
    "v": 1,
-   "kind": "autumn",
-   "times": [
-    "dawn",
-    "day"
-   ],
-   "seasons": [
-    "fall"
-   ],
-   "weather": [
-    "cloudy",
-    "clear",
-    "fog"
-   ],
    "src": "https://videos.pexels.com/video-files/10014051/10014051-uhd_3840_2160_30fps.mp4"
   },
   {
    "id": "golden-autumn-leaves",
    "v": 1,
-   "kind": "autumn",
-   "times": [
-    "day",
-    "golden"
-   ],
-   "seasons": [
-    "fall"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/34548631/14638779_3840_2160_30fps.mp4"
   },
   {
    "id": "sunny-winter-forest",
    "v": 1,
-   "kind": "winter",
-   "times": [
-    "dawn",
-    "day"
-   ],
-   "seasons": [
-    "winter"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/15587408/15587408-uhd_3840_2160_30fps.mp4"
   },
   {
    "id": "snow-from-trees",
    "v": 1,
-   "kind": "winter",
-   "times": [
-    "day"
-   ],
-   "seasons": [
-    "winter"
-   ],
-   "weather": [
-    "snow",
-    "cloudy"
-   ],
    "src": "https://videos.pexels.com/video-files/10161606/10161606-hd_3840_2160_30fps.mp4"
   },
   {
-   "id": "snowy-window",
+   "id": "blossoms-blue-sky",
    "v": 1,
-   "kind": "winter",
-   "times": [
-    "day",
-    "golden",
-    "night"
-   ],
-   "seasons": [
-    "winter"
-   ],
-   "weather": [
-    "snow"
-   ],
-   "src": "https://videos.pexels.com/video-files/35337403/14972600_3840_2160_30fps.mp4"
+   "src": "https://videos.pexels.com/video-files/31824282/13558377_3840_2160_24fps.mp4"
+  },
+  {
+   "id": "blossom-branches",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/11526128/11526128-uhd_3840_2160_30fps.mp4"
+  },
+  {
+   "id": "pink-blossom-closeup",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/36879125/15622751_3840_2160_30fps.mp4"
+  },
+  {
+   "id": "sunlit-reef",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/34319167/14539046_3840_2160_60fps.mp4"
+  },
+  {
+   "id": "sunrays-underwater",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/40432354/17276626_3840_2160_25fps.mp4"
+  },
+  {
+   "id": "blue-light-rays",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/32790667/13977647_3840_2160_60fps.mp4"
+  },
+  {
+   "id": "jungle-sunbeams",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/37218119/15766872_3840_2160_30fps.mp4"
+  },
+  {
+   "id": "oak-breeze",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/36482293/15469402_3840_2160_60fps.mp4"
+  },
+  {
+   "id": "cosmos-breeze",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/14215805/14215805-uhd_3840_2160_30fps.mp4"
+  },
+  {
+   "id": "spring-blossoms",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/36722594/15563732_3840_2160_30fps.mp4"
+  },
+  {
+   "id": "koi-pond",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/32102283/13686674_3840_2160_24fps.mp4"
   }
  ]
 }
