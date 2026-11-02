@@ -716,11 +716,13 @@ class MainActivity : Activity() {
         val link = ch.hulu
         val intent = if (link != null) Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(hulu)
         else packageManager.getLeanbackLaunchIntentForPackage(hulu) ?: packageManager.getLaunchIntentForPackage(hulu)
+        android.util.Log.i("HearthGuide", "watch ${ch.id} -> ${link ?: "(Hulu home)"}")
         if (intent == null) { toast("Hulu isn't installed on this TV"); return }
         try {
             startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             if (link == null) Toast.makeText(this, "Opening Hulu — pick ${ch.name} in Live", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
+            android.util.Log.w("HearthGuide", "watch link failed: $e")
             packageManager.getLaunchIntentForPackage(hulu)?.let { startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         }
     }
