@@ -191,30 +191,49 @@ object Guide {
     private val isoZ = SimpleDateFormat("yyyy-MM-dd'T'HH:mmX", Locale.US)
 
     /**
-     * Full listings from Gracenote's public TV listings grid (the data behind most cable guides):
-     * episode titles, descriptions, NEW/LIVE flags. Fetched directly by the TV, like a browser would.
+     * Full listings from Gracenote's TV listings grid (the data behind most cable guides):
+     * episode titles, descriptions, NEW/LIVE flags. A GitHub Action mirrors 24 hours of it every
+     * couple of hours (Gracenote turns away requests from TVs), so the TV reads that copy first and
+     * only tries Gracenote directly if the mirror is missing or stale.
      */
+    private const val MIRROR = "https://github.com/vanstaverenalex/hearth-tv/releases/download/guide/gracenote.json"
+
+    private fun gracenoteTexts(ctx: Context, g: GnLineup): List<String> {
+        val dir = File(ctx.cacheDir, "guide").apply { mkdirs() }
+        val mirrorCache = File(dir, "mirror.json")
+        val now = System.currentTimeMillis()
+        val mirror = fetchText(MIRROR, browser = false)?.takeIf { it.contains("\"channels\"") }
+        if (mirror != null) try { mirrorCache.writeText(mirror) } catch (_: Exception) {}
+        val m = mirror ?: if (mirrorCache.exists()) try { mirrorCache.readText() } catch (_: Exception) { null } else null
+        if (m != null) {
+            val updated = try { JSONObject(m).optLong("updated", 0L) * 1000 } catch (_: Exception) { 0L }
+            if (now - updated < 14 * 3600_000L) return listOf(m)
+        }
+        // Mirror missing or old: ask Gracenote directly (works from some networks), keeping a last-good copy.
+        val start = (now / 1000 / 1800) * 1800 - 1800
+        val out = ArrayList<String>()
+        for ((k, offset) in listOf(0L, 6 * 3600L).withIndex()) {
+            val url = "https://tvlistings.gracenote.com/api/grid?lineupId=${g.lineupId}&timespan=6&headendId=${g.headendId}" +
+                "&country=USA&timezone=&device=${g.device}&postalCode=${g.postalCode}&isOverride=true&time=${start + offset}" +
+                "&pref=16%2C128&userId=-&aid=orbebb&languagecode=en-us"
+            val cache = File(dir, "gracenote-$k.json")
+            var json = fetchText(url, browser = true)?.takeIf { it.contains("\"channels\"") }
+            if (json != null) try { cache.writeText(json) } catch (_: Exception) {}
+            else if (cache.exists() && now - cache.lastModified() < 20 * 3600_000L) json = try { cache.readText() } catch (_: Exception) { null }
+            if (json != null) out += json
+        }
+        if (out.isEmpty() && m != null) out += m   // an old mirror still beats nothing
+        return out
+    }
+
     private fun gracenote(ctx: Context, channels: List<Channel>, into: MutableMap<String, MutableList<Program>>): Int {
         val g = gnLineup ?: return 0
         val byCall = HashMap<String, String>()
         channels.forEach { c -> c.gn.forEach { byCall.putIfAbsent(it, c.id) } }
         if (byCall.isEmpty()) return 0
         var count = 0
-        val start = (System.currentTimeMillis() / 1000 / 1800) * 1800 - 1800
         val got = HashSet<String>()
-        for (offset in listOf(0L, 6 * 3600L)) {
-            val url = "https://tvlistings.gracenote.com/api/grid?lineupId=${g.lineupId}&timespan=6&headendId=${g.headendId}" +
-                "&country=USA&timezone=&device=${g.device}&postalCode=${g.postalCode}&isOverride=true&time=${start + offset}" +
-                "&pref=16%2C128&userId=-&aid=orbebb&languagecode=en-us"
-            // Keep the last good copy of each window on disk: if a fetch fails, the guide still has full listings.
-            val cache = File(File(ctx.cacheDir, "guide").apply { mkdirs() }, "gracenote-${if (offset == 0L) "a" else "b"}.json")
-            var json = fetchGracenote(url)
-            if (json != null) try { cache.writeText(json) } catch (_: Exception) {}
-            else if (cache.exists() && System.currentTimeMillis() - cache.lastModified() < 20 * 3600_000L) {
-                json = try { cache.readText() } catch (_: Exception) { null }
-                Log.i(TAG, "gracenote: using cached window $offset")
-            }
-            if (json == null) continue
+        for ((offset, json) in gracenoteTexts(ctx, g).withIndex()) {
             val arr = try { JSONObject(json).getJSONArray("channels") } catch (e: Exception) { null } ?: continue
             for (i in 0 until arr.length()) {
                 val c = arr.getJSONObject(i)
@@ -248,25 +267,23 @@ object Guide {
         return count
     }
 
-    /** Fetch like the Gracenote web guide does (same headers), with one retry. */
-    private fun fetchGracenote(url: String): String? {
+    /** GET a URL as text with one retry; [browser] sends the same headers the Gracenote web guide does. */
+    private fun fetchText(url: String, browser: Boolean): String? {
         repeat(2) { attempt ->
             try {
                 val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10000; readTimeout = 20000
-                    setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
-                    setRequestProperty("Accept", "application/json, text/plain, */*")
-                    setRequestProperty("Accept-Language", "en-US,en;q=0.9")
-                    setRequestProperty("Referer", "https://tvlistings.gracenote.com/grid-affiliates.html?aid=orbebb")
-                    setRequestProperty("Origin", "https://tvlistings.gracenote.com")
+                    connectTimeout = 10000; readTimeout = 20000; instanceFollowRedirects = true
+                    if (browser) {
+                        setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+                        setRequestProperty("Accept", "application/json, text/plain, */*")
+                        setRequestProperty("Accept-Language", "en-US,en;q=0.9")
+                        setRequestProperty("Referer", "https://tvlistings.gracenote.com/grid-affiliates.html?aid=orbebb")
+                    } else setRequestProperty("User-Agent", "HearthTV/1.0")
                 }
                 val code = conn.responseCode
-                if (code == 200) {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    conn.disconnect()
-                    if (body.contains("\"channels\"")) return body
-                } else { Log.w(TAG, "gracenote HTTP $code"); conn.disconnect() }
-            } catch (e: Exception) { Log.w(TAG, "gracenote: ${e.message}") }
+                if (code == 200) return conn.inputStream.bufferedReader().use { it.readText() }.also { conn.disconnect() }
+                Log.w(TAG, "GET $code ${url.take(60)}"); conn.disconnect()
+            } catch (e: Exception) { Log.w(TAG, "GET ${url.take(60)}: ${e.message}") }
             if (attempt == 0) Thread.sleep(1500)
         }
         return null

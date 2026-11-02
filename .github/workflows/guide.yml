@@ -1,0 +1,31 @@
+name: Guide listings mirror
+
+on:
+  schedule:
+    - cron: "23 */2 * * *"
+  push:
+    branches: [main]
+    paths: [channels.json, tools/guide_mirror.py, .github/workflows/guide.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: guide
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch 24 hours of listings
+        run: python3 tools/guide_mirror.py
+      - name: Publish to the 'guide' release
+        run: |
+          gh release view guide >/dev/null 2>&1 || gh release create guide --title "Guide listings" --latest=false --notes "Listings mirror for Hearth TV, refreshed every two hours."
+          gh release upload guide gracenote.json --clobber
