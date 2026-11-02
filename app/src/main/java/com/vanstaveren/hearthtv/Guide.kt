@@ -189,7 +189,6 @@ object Guide {
 
     /** Build the full guide from now back 30 minutes to about 9 hours ahead. Call off the main thread. */
     private val isoSec = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX", Locale.US)
-    private val isoMin = SimpleDateFormat("yyyy-MM-dd'T'HH:mmX", Locale.US)
     /** Gracenote times look like 2026-11-02T02:00:00Z (older responses dropped the seconds). */
     private fun parseIso(t: String): Long? =
         try { isoSec.parse(t)?.time } catch (_: Exception) { null } ?: try { isoMin.parse(t)?.time } catch (_: Exception) { null }
