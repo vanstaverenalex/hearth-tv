@@ -29,7 +29,7 @@ ffmpeg -nostdin -hide_banner -loglevel error -y -ss "$SKIP" -t "$L" -i "$IN" -fi
 [0:v]fps=$FPSN,scale=3840:2160:force_original_aspect_ratio=increase:flags=lanczos,crop=3840:2160,setsar=1,format=yuv420p,split[a][b];\
 [a]trim=start=$F,setpts=PTS-STARTPTS[main];\
 [b]trim=end=$F,setpts=PTS-STARTPTS,format=yuva420p,fade=t=in:st=0:d=$F:alpha=1,setpts=PTS+$SHIFT/TB[head];\
-[main][head]overlay=eof_action=pass:format=auto,format=yuv420p[v]" \
+[main][head]overlay=shortest=1:format=auto,format=yuv420p[v]" \
   -map "[v]" -an \
   -c:v libx264 -preset veryfast -crf 20 -maxrate 28M -bufsize 56M \
   -profile:v high -level:v 5.1 -pix_fmt yuv420p -g "$GOP" -keyint_min "$GOP" \
