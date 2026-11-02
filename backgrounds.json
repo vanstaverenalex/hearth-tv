@@ -1,5 +1,5 @@
 {
- "_about": "Live backgrounds for Hearth TV: bright, happy, steady-camera scenes only (no time-lapses). A GitHub Action turns each Pexels source into a seamless 4K loop and uploads it to the 'backgrounds' release as <id>.mp4 (+ <id>.jpg preview). The TV picks clips whose times / seasons / weather match right now. All sources are free under the Pexels license. Bump 'v' on a clip to re-encode it.",
+ "_about": "Live backgrounds for Hearth TV: bright, happy, slow-moving 4K scenes (no time-lapses). A GitHub Action turns each Pexels source into a seamless 4K loop and uploads it to the 'backgrounds' release as <id>.mp4 (+ <id>.jpg preview). The TV shuffles through all of them; the skip button in the light/dark pill moves to the next. All sources are free under the Pexels license. Bump 'v' on a clip to re-encode it.",
  "release": "https://github.com/vanstaverenalex/hearth-tv/releases/download/backgrounds/",
  "clips": [
   {
@@ -37,23 +37,6 @@
    "src": "https://videos.pexels.com/video-files/11751758/11751758-uhd_3840_2160_25fps.mp4"
   },
   {
-   "id": "campfire-embers",
-   "v": 1,
-   "kind": "cozy",
-   "times": [
-    "night"
-   ],
-   "seasons": [
-    "summer",
-    "fall"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
-   "src": "https://videos.pexels.com/video-files/29604486/12740921_3840_2160_24fps.mp4"
-  },
-  {
    "id": "candle-trio",
    "v": 1,
    "kind": "cozy",
@@ -67,21 +50,6 @@
     "any"
    ],
    "src": "https://videos.pexels.com/video-files/6032544/6032544-uhd_3840_2160_25fps.mp4"
-  },
-  {
-   "id": "candle-bokeh",
-   "v": 1,
-   "kind": "cozy",
-   "times": [
-    "night"
-   ],
-   "seasons": [
-    "any"
-   ],
-   "weather": [
-    "any"
-   ],
-   "src": "https://videos.pexels.com/video-files/8531253/8531253-uhd_3840_2160_30fps.mp4"
   },
   {
    "id": "string-lights",
@@ -100,21 +68,6 @@
     "cloudy"
    ],
    "src": "https://videos.pexels.com/video-files/30050650/12889816_3840_2160_24fps.mp4"
-  },
-  {
-   "id": "bulb-glow",
-   "v": 1,
-   "kind": "lights",
-   "times": [
-    "night"
-   ],
-   "seasons": [
-    "any"
-   ],
-   "weather": [
-    "any"
-   ],
-   "src": "https://videos.pexels.com/video-files/6008064/6008064-uhd_3840_2160_24fps.mp4"
   },
   {
    "id": "tree-lights-bokeh",
@@ -146,56 +99,6 @@
     "any"
    ],
    "src": "https://videos.pexels.com/video-files/10614367/10614367-uhd_3840_2160_24fps.mp4"
-  },
-  {
-   "id": "cozy-christmas-snow",
-   "v": 1,
-   "kind": "cozy",
-   "times": [
-    "night",
-    "golden"
-   ],
-   "seasons": [
-    "winter"
-   ],
-   "weather": [
-    "snow",
-    "cloudy"
-   ],
-   "src": "https://videos.pexels.com/video-files/29465786/12684057_3840_2160_30fps.mp4"
-  },
-  {
-   "id": "rain-window-lights",
-   "v": 1,
-   "kind": "rain",
-   "times": [
-    "night",
-    "golden"
-   ],
-   "seasons": [
-    "any"
-   ],
-   "weather": [
-    "rain",
-    "storm"
-   ],
-   "src": "https://videos.pexels.com/video-files/33938712/14401948_3840_2160_30fps.mp4"
-  },
-  {
-   "id": "rainy-night-bokeh",
-   "v": 1,
-   "kind": "rain",
-   "times": [
-    "night"
-   ],
-   "seasons": [
-    "any"
-   ],
-   "weather": [
-    "rain",
-    "storm"
-   ],
-   "src": "https://videos.pexels.com/video-files/31060088/13273798_3840_2160_25fps.mp4"
   },
   {
    "id": "tulips-colorful",
@@ -451,60 +354,6 @@
    "src": "https://videos.pexels.com/video-files/30511075/13071907_3840_2160_30fps.mp4"
   },
   {
-   "id": "golden-grass",
-   "v": 1,
-   "kind": "fields",
-   "times": [
-    "golden"
-   ],
-   "seasons": [
-    "summer",
-    "fall"
-   ],
-   "weather": [
-    "clear",
-    "cloudy"
-   ],
-   "src": "https://videos.pexels.com/video-files/6922875/6922875-uhd_3840_2160_25fps.mp4"
-  },
-  {
-   "id": "golden-forest-light",
-   "v": 1,
-   "kind": "leaves",
-   "times": [
-    "golden",
-    "dawn"
-   ],
-   "seasons": [
-    "spring",
-    "summer",
-    "fall"
-   ],
-   "weather": [
-    "clear",
-    "fog"
-   ],
-   "src": "https://videos.pexels.com/video-files/37121719/15726418_3840_2160_24fps.mp4"
-  },
-  {
-   "id": "sunbeams-foliage",
-   "v": 1,
-   "kind": "leaves",
-   "times": [
-    "dawn",
-    "day"
-   ],
-   "seasons": [
-    "spring",
-    "summer"
-   ],
-   "weather": [
-    "clear",
-    "fog"
-   ],
-   "src": "https://videos.pexels.com/video-files/31807993/13551702_3840_2160_30fps.mp4"
-  },
-  {
    "id": "maple-sunshine",
    "v": 1,
    "kind": "autumn",
@@ -619,43 +468,6 @@
     "snow"
    ],
    "src": "https://videos.pexels.com/video-files/35337403/14972600_3840_2160_30fps.mp4"
-  },
-  {
-   "id": "rain-green-leaves",
-   "v": 1,
-   "kind": "rain",
-   "times": [
-    "dawn",
-    "day",
-    "golden"
-   ],
-   "seasons": [
-    "spring",
-    "summer",
-    "fall"
-   ],
-   "weather": [
-    "rain",
-    "storm"
-   ],
-   "src": "https://videos.pexels.com/video-files/5487781/5487781-uhd_3840_2160_30fps.mp4"
-  },
-  {
-   "id": "raindrops-foliage",
-   "v": 1,
-   "kind": "rain",
-   "times": [
-    "day"
-   ],
-   "seasons": [
-    "spring",
-    "summer"
-   ],
-   "weather": [
-    "rain",
-    "storm"
-   ],
-   "src": "https://videos.pexels.com/video-files/38403282/16306828_3840_2160_25fps.mp4"
   }
  ]
 }

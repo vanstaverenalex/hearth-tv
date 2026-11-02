@@ -38,7 +38,6 @@ class MainActivity : Activity() {
     private var dark = true
     private var weather: WeatherNow? = null
     private var allApps: List<AppEntry> = emptyList()
-    private var sceneKey: String? = null
     private val bgWorker = Executors.newSingleThreadExecutor()
     private var lastWeatherAt = 0L
     private var firstFocusDone = false
@@ -57,6 +56,7 @@ class MainActivity : Activity() {
     private lateinit var brandName: TextView
     private lateinit var brandSub: TextView
     private lateinit var modeBar: LinearLayout
+    private lateinit var modeDivider: View
     private val modeButtons = ArrayList<Pair<String, View>>()
     private lateinit var dock: LinearLayout
     private lateinit var dockGlass: GlassDrawable
@@ -238,6 +238,20 @@ class MainActivity : Activity() {
             modeButtons += key to b
             modeBar.addView(b, LinearLayout.LayoutParams(if (icon != 0) dpi(30f) else -2, dpi(30f)).apply { marginEnd = dpi(2f) })
         }
+        // Divider, then ⏭ next background, in the same glass pill
+        modeDivider = View(this)
+        modeBar.addView(modeDivider, LinearLayout.LayoutParams(dpi(1f), dpi(16f)).apply { marginStart = dpi(3f); marginEnd = dpi(5f) })
+        val skip = FrameLayout(this).apply {
+            addView(ImageView(this@MainActivity).apply { setImageResource(R.drawable.ic_next) }, FrameLayout.LayoutParams(dpi(14f), dpi(14f), Gravity.CENTER))
+            isFocusable = true; contentDescription = "Next background"
+            setOnClickListener { skipScene() }
+            setOnKeyListener { _, code, e ->
+                if (code == KeyEvent.KEYCODE_MENU && e.action == KeyEvent.ACTION_UP) { showSetupStatus(); true } else false
+            }
+            setOnFocusChangeListener { _, _ -> styleModeBar() }
+        }
+        modeButtons += "skip" to skip
+        modeBar.addView(skip, LinearLayout.LayoutParams(dpi(30f), dpi(30f)))
         topRight.addView(modeBar)
         root.addView(topRight, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
             rightMargin = dpi(60f); topMargin = dpi(46f)
@@ -451,6 +465,7 @@ class MainActivity : Activity() {
 
     private fun styleModeBar() {
         val ink = if (dark) Color.WHITE else Hearth.INK_DARK
+        modeDivider.setBackgroundColor(Color.argb(60, Color.red(ink), Color.green(ink), Color.blue(ink)))
         for ((key, v) in modeButtons) {
             val selected = prefs.mode == key
             v.background = when {
@@ -467,16 +482,31 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Pick the live background for this moment: light/dark, time of day, season and weather. */
+    private var sceneSince = 0L
+    private var skipping = false
+
+    /** Start the live background (the saved clip), then move on by itself every 40 minutes. */
     private fun refreshScene() {
-        val scene = Backgrounds.contextNow(dark, weather)
-        if (scene.key == sceneKey && video.current != null) return
-        sceneKey = scene.key
-        android.util.Log.i("HearthBg", "scene $scene")
+        val now = System.currentTimeMillis()
+        if (video.current != null && now - sceneSince < 40 * 60_000L) return
+        val advance = video.current != null
+        sceneSince = now
         bgWorker.execute {
-            val f = Backgrounds.pick(this, scene)
-            if (f != null) ui.post { if (sceneKey == scene.key) video.play(f) }
-            Backgrounds.prefetchNext(this, scene)
+            val f = if (advance) Backgrounds.next(this) else Backgrounds.current(this)
+            if (f != null) ui.post { video.play(f) }
+            Backgrounds.prefetch(this)
+        }
+    }
+
+    /** ⏭ in the mode pill: next background right away. */
+    private fun skipScene() {
+        if (skipping) return
+        skipping = true
+        sceneSince = System.currentTimeMillis()
+        bgWorker.execute {
+            val f = Backgrounds.next(this)
+            ui.post { skipping = false; if (f != null) video.play(f) }
+            Backgrounds.prefetch(this)
         }
     }
 

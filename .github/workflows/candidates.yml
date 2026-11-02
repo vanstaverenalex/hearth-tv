@@ -1,0 +1,28 @@
+name: Review background candidates
+
+on:
+  push:
+    branches: [main]
+    paths: [tools/candidates.txt, tools/candidates.py, .github/workflows/candidates.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg && pip install -q pillow
+      - name: Measure candidates and draw review sheets
+        run: mkdir -p work && python3 tools/candidates.py
+      - name: Upload sheets to the 'candidates' release
+        run: |
+          gh release view candidates >/dev/null 2>&1 || gh release create candidates --title "Background candidates" --latest=false --notes "Review sheets for new live backgrounds."
+          gh release view candidates --json assets --jq '.assets[].name' | while read -r n; do gh release delete-asset candidates "$n" -y; done
+          gh release upload candidates work/sheet*.jpg work/candidates.json --clobber
