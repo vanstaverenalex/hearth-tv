@@ -11,8 +11,15 @@ IN="$1"; OUT="$2"; MAX="${3:-32}"; F="${4:-2}"
 DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$IN")
 FPS=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$IN")
 FPSN=$(python3 -c "from fractions import Fraction as F; f=float(F('$FPS')); print(30 if f>30.5 else round(f,3))")
-SKIP=1
-L=$(python3 -c "d=float('$DUR'); print(f'{max(min(d-$SKIP-0.2, $MAX), 3*$F+2):.3f}')")
+# Use only footage that really exists: skip the first second when there's room,
+# and shorten the blend for very short clips so the loop math always holds.
+read SKIP L F <<< $(python3 -c "
+d=float('$DUR')-0.15; m=float('$MAX'); f=float('$F')
+if d >= m+1: s,l = 1.0, m
+elif d >= 10: s,l = 1.0, d-1
+else: s,l = 0.0, d
+f = min(f, l/4)
+print(f'{s:.3f} {l:.3f} {f:.3f}')")
 SHIFT=$(python3 -c "print(f'{$L-2*$F:.3f}')")
 GOP=$(python3 -c "print(int(round($FPSN*2)))")
 
