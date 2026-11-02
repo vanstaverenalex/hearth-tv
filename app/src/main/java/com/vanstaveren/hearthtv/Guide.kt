@@ -55,6 +55,8 @@ object Guide {
         val isLive: Boolean = false,
         val desc: String = "",
         val rich: Boolean = false,   // came from Gracenote (best data)
+        /** Gracenote artwork id (portrait poster), e.g. p18455210_e_v9_aa; null when the listing has none. */
+        val art: String? = null,
     )
 
     data class Lineup(
@@ -265,6 +267,7 @@ object Guide {
                         st, en, p.optString("title"), detail,
                         isNew = "New" in flags || "Premiere" in flags, isLive = "Live" in flags,
                         desc = p.optString("shortDesc", "").takeIf { it != "null" } ?: "", rich = true,
+                        art = e.optString("thumbnail", "").takeIf { it.isNotBlank() && it != "null" },
                     )
                     count++
                 }

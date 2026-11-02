@@ -26,7 +26,7 @@ for k in range(4):
         for e in c.get('events', []):
             p = e.get('program') or {}
             ch['events'][e['startTime']] = {
-                'startTime': e['startTime'], 'endTime': e['endTime'], 'flag': e.get('flag') or [],
+                'startTime': e['startTime'], 'endTime': e['endTime'], 'flag': e.get('flag') or [], 'thumbnail': e.get('thumbnail'),
                 'program': {k2: p.get(k2) for k2 in ('title', 'episodeTitle', 'season', 'episode', 'shortDesc')},
             }
     time.sleep(2)

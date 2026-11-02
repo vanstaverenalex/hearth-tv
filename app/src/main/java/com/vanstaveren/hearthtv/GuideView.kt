@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
+import android.graphics.Path
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
@@ -14,6 +15,9 @@ import android.graphics.Shader
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.LruCache
+import android.text.Layout
+import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
 import android.view.KeyEvent
@@ -48,9 +52,10 @@ class Spring(var x: Double, private val omega: Double) {
 
 /**
  * The Live TV grid, drawn in one pass (no child views, so scrolling never stutters).
- * Two-line glass cells (title, then time / episode / NEW / LIVE), small evenly-weighted channel logos,
- * a thin progress line on what's airing, and one glowing Hearth highlight. Rows, time window and
- * highlight all ride on springs, so movement is fluid even when a key is held down.
+ * Two-line glass cells, small evenly-weighted channel logos and a thin progress line on what's airing.
+ * The selected channel's row opens into a glowing card: the show's poster (or the channel's logo when
+ * a listing has none), title, episode, a two-line description and what's on next. Scroll, time window
+ * and the opening row all ride on springs, so movement stays fluid even with a key held down.
  */
 class GuideView(context: Context) : View(context) {
 
@@ -75,25 +80,31 @@ class GuideView(context: Context) : View(context) {
     private val MIN = 60_000L
     private val SPAN = 120 * MIN
 
-    // Animated state, all in content units (rows / epoch ms) so the highlight and the grid can never drift apart.
-    private val topS = Spring(0.0, 14.0)
-    private val winS = Spring(floor30(System.currentTimeMillis()).toDouble(), 14.0)
-    private val fRow = Spring(0.0, 17.0)
-    private val fStart = Spring(0.0, 17.0)
-    private val fEnd = Spring(0.0, 17.0)
-    private var lastFrame = 0L
-
     private val headerH = dp(30f)
     private val rowH = dp(47f)
+    private val expH = dp(150f)          // height of the opened row
+    private val extra = expH - rowH
     private val gap = dp(4f)
     private val logoW = dp(90f)
     private val fadeH = dp(22f)
     private val radius = dp(10f)
+    private val cardR = dp(16f)
+
+    // Animated state: scroll in px, time window in epoch ms, the opened row as a (fractional) row index.
+    private val scrollS = Spring(0.0, 14.0)
+    private val winS = Spring(floor30(System.currentTimeMillis()).toDouble(), 14.0)
+    private val fRow = Spring(0.0, 16.0)
+    private val springs = arrayOf(scrollS, winS, fRow)
+    private var lastFrame = 0L
 
     private val title = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(11.5f) }
     private val sub = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(9f); typeface = Fonts.body(context, 600) }
     private val tag = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(8f); typeface = Fonts.body(context, 800); letterSpacing = 0.08f }
     private val small = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(9.5f) }
+    private val cardTitle = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(20f); typeface = Fonts.display(context, 400); color = Color.WHITE }
+    private val cardMeta = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(10.5f); typeface = Fonts.body(context, 700); color = Color.WHITE }
+    private val cardBody = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(10f); typeface = Fonts.body(context, 500); color = Color.argb(225, 255, 255, 255) }
+    private val cardCaps = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(8.5f); typeface = Fonts.body(context, 800); letterSpacing = 0.09f; color = Color.argb(220, 255, 255, 255) }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val focusFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val focusRim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(1f) }
@@ -104,10 +115,13 @@ class GuideView(context: Context) : View(context) {
     private val fmt = java.text.SimpleDateFormat("h:mm", java.util.Locale.US)
     private val dayFmt = java.text.SimpleDateFormat("EEEE", java.util.Locale.US)
 
-    private val focus = RectF()
+    private val card = RectF()
     private val tmp = RectF()
     private val cell = RectF()
+    private val clip = Path()
     private val ellipsized = HashMap<String, String>()
+    private var descLayout: StaticLayout? = null
+    private var descKey = ""
 
     init {
         isFocusable = true
@@ -117,6 +131,8 @@ class GuideView(context: Context) : View(context) {
 
     private fun floor30(t: Long) = t - (t % (30 * 60_000L))
     private fun logoUrl(base: String) = base + (if (dark) ".png" else "-light.png") + "?v=${Guide.logoVersion}"
+    /** The white logo always: it sits on the coloured card. */
+    private fun cardLogoUrl(base: String) = "$base.png?v=${Guide.logoVersion}"
 
     // ---------------------------------------------------------------- data
 
@@ -131,7 +147,7 @@ class GuideView(context: Context) : View(context) {
     fun resetToNow() {
         cursor = System.currentTimeMillis()
         row = 0
-        topS.snap(0.0)
+        scrollS.snap(0.0)
         winS.snap(floor30(cursor).toDouble())
         retarget(animate = false)
     }
@@ -144,13 +160,12 @@ class GuideView(context: Context) : View(context) {
             else -> all.filter { it.category == cat }
         }
         row = keepId?.let { id -> channels.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
-        topS.snap(0.0)
+        if (!keepPosition) scrollS.snap(0.0)
         retarget(animate = false)
-        channels.forEach { ch -> ch.logo?.let { Logos.request(context, logoUrl(it)) { invalidate() } } }
+        channels.forEach { ch -> ch.logo?.let { Logos.request(context, logoUrl(it)) { invalidate() }; Logos.request(context, cardLogoUrl(it)) { invalidate() } } }
         invalidate()
     }
 
-    private fun visibleRows() = maxOf(1, ((height - headerH) / rowH).toInt())
     private fun programsFor(ch: Guide.Channel) = programs[ch.id].orEmpty()
 
     private fun focusedProgram(): Guide.Program? {
@@ -167,47 +182,41 @@ class GuideView(context: Context) : View(context) {
     private fun tlRight() = width - dp(12f)
     private fun tlWidth() = tlRight() - tlLeft()
     private fun xFor(t: Double, win: Double) = tlLeft() + ((t - win) / SPAN).toFloat() * tlWidth()
-    private fun yFor(r: Double, top: Double) = headerH + ((r - top) * rowH).toFloat()
+    private fun visH() = height - headerH
 
-    private fun cellRect(r: Int, p: Guide.Program, win: Double, top: Double, out: RectF) {
-        val x0 = maxOf(tlLeft(), xFor(p.start.toDouble(), win))
-        val x1 = minOf(tlRight(), xFor(p.end.toDouble(), win))
-        val y = yFor(r.toDouble(), top)
+    /** Content y of row r while the open row sits at fractional index f (rows after it are pushed down). */
+    private fun rowY(r: Int, f: Double) = (r * rowH + extra * (r - f).coerceIn(0.0, 1.0)).toFloat()
+    private fun screenY(r: Int) = headerH + rowY(r, fRow.x) - scrollS.x.toFloat()
+    private fun slotH(r: Int) = rowH + extra * (1 - abs(r - fRow.x)).coerceIn(0.0, 1.0).toFloat()
+    private fun contentH() = channels.size * rowH + extra
+    private fun maxScroll() = maxOf(0f, contentH() - visH() + dp(6f))
+
+    private fun cellRect(left: Long, right: Long, y: Float, win: Double, out: RectF) {
+        val x0 = maxOf(tlLeft(), xFor(left.toDouble(), win))
+        val x1 = minOf(tlRight(), xFor(right.toDouble(), win))
         out.set(x0 + gap / 2, y + gap / 2, x1 - gap / 2, y + rowH - gap / 2)
     }
 
-    /** Point every spring at the current selection: rows keep one row of breathing room, the time window follows the cursor. */
+    /** Point every spring at the current selection: the open row keeps breathing room, the time window follows the cursor. */
     private fun retarget(animate: Boolean = true) {
-        val vis = visibleRows()
-        val maxTop = maxOf(0, channels.size - vis).toDouble()
-        var t = topS.target
-        val margin = if (vis >= 5) 1 else 0
-        if (row < t + margin) t = (row - margin).toDouble()
-        if (row > t + vis - 1 - margin) t = (row - vis + 1 + margin).toDouble()
-        topS.target = t.coerceIn(0.0, maxTop)
+        val y = row * rowH
+        var s = scrollS.target.toFloat()
+        val margin = rowH * 0.7f
+        if (y - margin < s) s = y - margin
+        if (y + expH + margin > s + visH()) s = y + expH + margin - visH()
+        scrollS.target = s.coerceIn(0f, maxScroll()).toDouble()
 
         var w = winS.target.toLong()
         while (cursor >= w + SPAN - 20 * MIN) w += 30 * MIN
         val earliest = floor30(System.currentTimeMillis()) - 30 * MIN
         while (cursor < w + 5 * MIN && w > earliest) w -= 30 * MIN
         winS.target = w.toDouble()
+        fRow.target = row.toDouble()
 
         val p = focusedProgram()
-        fRow.target = row.toDouble()
-        fStart.target = (p?.start ?: w).toDouble()
-        fEnd.target = (p?.end ?: (w + SPAN)).toDouble()
-
+        p?.art?.let { Art.request(context, it) { invalidate() } }
         channels.getOrNull(row)?.let { onFocus?.invoke(it, p) }
-        if (!animate || width == 0) {
-            for (s in springs) s.snap(s.target)
-            invalidate(); return
-        }
-        kick()
-    }
-
-    private val springs get() = arrayOf(topS, winS, fRow, fStart, fEnd)
-
-    private fun kick() {
+        if (!animate || width == 0) { for (sp in springs) sp.snap(sp.target); invalidate(); return }
         if (lastFrame == 0L) lastFrame = SystemClock.uptimeMillis()
         postInvalidateOnAnimation()
     }
@@ -223,7 +232,7 @@ class GuideView(context: Context) : View(context) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        ellipsized.clear()
+        ellipsized.clear(); descLayout = null
         retarget(animate = false)
     }
 
@@ -238,6 +247,7 @@ class GuideView(context: Context) : View(context) {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (channels.isEmpty()) return super.onKeyDown(keyCode, event)
+        val page = maxOf(1, (visH() / rowH).toInt() - 2)
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> { if (row == 0) { onExitUp?.invoke(); return true }; row-- }
             KeyEvent.KEYCODE_DPAD_DOWN -> if (row < channels.size - 1) row++ else return true
@@ -253,9 +263,9 @@ class GuideView(context: Context) : View(context) {
                 cursor = maxOf(prev.start, earliest) + MIN
             }
             KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD ->
-                row = minOf(channels.size - 1, row + visibleRows() - 1)
+                row = minOf(channels.size - 1, row + page)
             KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_MEDIA_REWIND ->
-                row = maxOf(0, row - visibleRows() + 1)
+                row = maxOf(0, row - page)
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BUTTON_A -> {
                 channels.getOrNull(row)?.let { onWatch?.invoke(it) }; return true
             }
@@ -281,7 +291,6 @@ class GuideView(context: Context) : View(context) {
         val ink = if (dark) Color.WHITE else Hearth.INK_DARK
         fun inkA(a: Int) = Color.argb(a, Color.red(ink), Color.green(ink), Color.blue(ink))
         val win = winS.x
-        val top = topS.x
         val winEnd = win + SPAN
         val nowX = xFor(now.toDouble(), win)
         val nowVisible = now >= win && now < winEnd
@@ -300,42 +309,47 @@ class GuideView(context: Context) : View(context) {
             t += 30 * MIN
         }
 
-        // Rows draw into their own layer so the top and bottom edges can fade softly.
+        // Rows go into their own layer so the top and bottom edges can fade softly.
         val layerTop = headerH - dp(2f)
         val save = canvas.saveLayer(0f, layerTop, width.toFloat(), height.toFloat(), null)
-        val first = maxOf(0, top.toInt())
-        val last = minOf(channels.size - 1, (top + visibleRows() + 1).toInt())
-        for (r in first..last) {
+        for (r in channels.indices) {
+            val y = screenY(r)
+            val h = slotH(r)
+            if (y > height || y + h < layerTop) continue
             val ch = channels[r]
-            val y = yFor(r.toDouble(), top)
+            val openness = (1 - abs(r - fRow.x)).coerceIn(0.0, 1.0).toFloat()
 
             // Logo, sized by area so wide and square logos carry the same visual weight
             val logo = ch.logo?.let { Logos.get(logoUrl(it)) }
             val cx = dp(6f) + dp(62f) / 2
+            val cy = y + h / 2
             if (logo != null) {
                 val ratio = logo.width.toFloat() / logo.height
-                var h = sqrt(dp(48f) * dp(16f) / ratio).coerceIn(dp(11f), dp(22f))
-                var w = h * ratio
-                if (w > dp(62f)) { w = dp(62f); h = w / ratio }
-                tmp.set(cx - w / 2, y + (rowH - h) / 2, cx + w / 2, y + (rowH + h) / 2)
-                bmpPaint.alpha = if (r == row && isFocused) 255 else 225
+                var lh = sqrt(dp(48f) * dp(16f) / ratio).coerceIn(dp(11f), dp(22f)) * (1f + 0.15f * openness)
+                var lw = lh * ratio
+                if (lw > dp(66f)) { lw = dp(66f); lh = lw / ratio }
+                tmp.set(cx - lw / 2, cy - lh / 2, cx + lw / 2, cy + lh / 2)
+                bmpPaint.alpha = if (isFocused && r == row) 255 else 225
                 canvas.drawBitmap(logo, null, tmp, bmpPaint)
             } else {
                 title.typeface = Fonts.body(context, 800); title.color = inkA(220); title.textAlign = Paint.Align.CENTER
-                canvas.drawText(fit(ch.name, title, dp(64f)), cx, y + rowH / 2 - (title.descent() + title.ascent()) / 2, title)
+                canvas.drawText(fit(ch.name, title, dp(64f)), cx, cy - (title.descent() + title.ascent()) / 2, title)
                 title.textAlign = Paint.Align.LEFT
             }
-            if (ch.id in favs) { fill.shader = null; fill.color = Hearth.PINK; canvas.drawCircle(logoW - dp(9f), y + rowH / 2, dp(2f), fill) }
+            if (ch.id in favs) { fill.shader = null; fill.color = Hearth.PINK; canvas.drawCircle(logoW - dp(9f), cy, dp(2f), fill) }
 
+            // The opened row is covered by its card; skip its cells so nothing shows through the glass.
+            if (openness > 0.5f) continue
+            val cellTop = y + (h - rowH) / 2
             val list = programsFor(ch)
             if (list.isEmpty()) {
-                cell.set(tlLeft() + gap / 2, y + gap / 2, tlRight() - gap / 2, y + rowH - gap / 2)
+                cell.set(tlLeft() + gap / 2, cellTop + gap / 2, tlRight() - gap / 2, cellTop + rowH - gap / 2)
                 fill.shader = null; fill.color = if (dark) Color.argb(12, 255, 255, 255) else Color.argb(80, 255, 255, 255)
                 canvas.drawRoundRect(cell, radius, radius, fill)
             }
             for (p in list) {
                 if (p.end <= win || p.start >= winEnd) continue
-                cellRect(r, p, win, top, cell)
+                cellRect(p.start, p.end, cellTop, win, cell)
                 if (cell.width() < dp(6f)) continue
                 val airing = now >= p.start && now < p.end
                 fill.shader = null
@@ -345,44 +359,17 @@ class GuideView(context: Context) : View(context) {
                     else -> if (dark) Color.argb(17, 255, 255, 255) else Color.argb(120, 255, 255, 255)
                 }
                 canvas.drawRoundRect(cell, radius, radius, fill)
-                drawCell(canvas, p, cell, now, airing, false, ink, ::inkA)
-            }
-        }
-
-        // Focus: one glowing glass highlight riding the same springs as the grid
-        if (isFocused) {
-            val y = yFor(fRow.x, top)
-            val x0 = maxOf(tlLeft(), xFor(fStart.x, win)) + gap / 2
-            val x1 = minOf(tlRight(), xFor(fEnd.x, win)) - gap / 2
-            focus.set(x0, y + gap / 2, maxOf(x0 + dp(24f), x1), y + rowH - gap / 2)
-            for (i in 3 downTo 1) {
-                val spread = dp(3.5f) * i
-                tmp.set(focus.left - spread, focus.top - spread, focus.right + spread, focus.bottom + spread)
-                glow.shader = LinearGradient(tmp.left, tmp.top, tmp.right, tmp.bottom,
-                    Color.argb(34 / i, 168, 85, 247), Color.argb(34 / i, 244, 114, 182), Shader.TileMode.CLAMP)
-                canvas.drawRoundRect(tmp, radius + spread, radius + spread, glow)
-            }
-            focusFill.shader = LinearGradient(focus.left, focus.top, focus.right, focus.bottom,
-                Color.argb(215, 147, 72, 232), Color.argb(215, 230, 98, 172), Shader.TileMode.CLAMP)
-            canvas.drawRoundRect(focus, radius, radius, focusFill)
-            // glass sheen on the upper half
-            fill.shader = LinearGradient(0f, focus.top, 0f, focus.centerY(), Color.argb(46, 255, 255, 255), Color.argb(0, 255, 255, 255), Shader.TileMode.CLAMP)
-            canvas.drawRoundRect(focus, radius, radius, fill); fill.shader = null
-            focusRim.shader = LinearGradient(0f, focus.top, 0f, focus.bottom, Color.argb(200, 255, 228, 246), Color.argb(60, 255, 228, 246), Shader.TileMode.CLAMP)
-            canvas.drawRoundRect(focus, radius, radius, focusRim)
-            focusedProgram()?.let { p ->
-                canvas.save(); canvas.clipRect(focus)
-                drawCell(canvas, p, focus, now, now >= p.start && now < p.end, true, ink) { a -> Color.argb(a, 255, 255, 255) }
-                canvas.restore()
+                drawCell(canvas, p, cell, now, airing, ink, ::inkA)
             }
         }
 
         // Soft fades at the top and bottom of the rows
-        if (top > 0.01) {
+        val scroll = scrollS.x.toFloat()
+        if (scroll > 1f) {
             fadePaint.shader = LinearGradient(0f, layerTop, 0f, layerTop + fadeH, Color.BLACK, Color.TRANSPARENT, Shader.TileMode.CLAMP)
             canvas.drawRect(0f, layerTop, width.toFloat(), layerTop + fadeH, fadePaint)
         }
-        if (top + visibleRows() < channels.size - 0.01) {
+        if (scroll < maxScroll() - 1f) {
             fadePaint.shader = LinearGradient(0f, height - fadeH, 0f, height.toFloat(), Color.TRANSPARENT, Color.BLACK, Shader.TileMode.CLAMP)
             canvas.drawRect(0f, height - fadeH, width.toFloat(), height.toFloat(), fadePaint)
         }
@@ -400,42 +387,176 @@ class GuideView(context: Context) : View(context) {
             small.textAlign = Paint.Align.LEFT; small.typeface = Fonts.body(context, 600)
         }
 
+        // The opened row: one glowing card that glides with the selection
+        drawCard(canvas, now)
+
         // Slim scroll indicator that glides with the rows
-        val vis = visibleRows()
-        if (channels.size > vis) {
+        if (maxScroll() > 1f) {
             val trackTop = headerH + dp(6f); val trackBottom = height - dp(6f)
             val x = width - dp(4f)
             fill.shader = null; fill.color = inkA(22)
             tmp.set(x - dp(1.5f), trackTop, x + dp(1.5f), trackBottom); canvas.drawRoundRect(tmp, dp(1.5f), dp(1.5f), fill)
             val span = trackBottom - trackTop
-            val thumbH = maxOf(dp(20f), span * vis / channels.size)
-            val pos = (top / maxOf(1.0, (channels.size - vis).toDouble())).toFloat().coerceIn(0f, 1f)
-            val ty = trackTop + (span - thumbH) * pos
+            val thumbH = maxOf(dp(20f), span * visH() / contentH())
+            val ty = trackTop + (span - thumbH) * (scroll / maxScroll()).coerceIn(0f, 1f)
             fill.color = inkA(130)
             tmp.set(x - dp(1.5f), ty, x + dp(1.5f), ty + thumbH); canvas.drawRoundRect(tmp, dp(1.5f), dp(1.5f), fill)
         }
     }
 
+    private fun drawCard(canvas: Canvas, now: Long) {
+        val ch = channels.getOrNull(row) ?: return
+        val p = focusedProgram()
+        val top = headerH + (fRow.x * rowH).toFloat() - scrollS.x.toFloat()
+        card.set(tlLeft() + gap / 2, top + gap / 2, tlRight() - gap / 2, top + expH - gap / 2)
+        for (i in 3 downTo 1) {
+            val spread = dp(4f) * i
+            tmp.set(card.left - spread, card.top - spread, card.right + spread, card.bottom + spread)
+            glow.shader = LinearGradient(tmp.left, tmp.top, tmp.right, tmp.bottom,
+                Color.argb(34 / i, 168, 85, 247), Color.argb(34 / i, 244, 114, 182), Shader.TileMode.CLAMP)
+            canvas.drawRoundRect(tmp, cardR + spread, cardR + spread, glow)
+        }
+        focusFill.shader = LinearGradient(card.left, card.top, card.right, card.bottom,
+            Color.argb(235, 147, 72, 232), Color.argb(235, 230, 98, 172), Shader.TileMode.CLAMP)
+        canvas.drawRoundRect(card, cardR, cardR, focusFill)
+        fill.shader = LinearGradient(0f, card.top, 0f, card.top + expH * 0.5f, Color.argb(46, 255, 255, 255), Color.argb(0, 255, 255, 255), Shader.TileMode.CLAMP)
+        canvas.drawRoundRect(card, cardR, cardR, fill); fill.shader = null
+        focusRim.shader = LinearGradient(0f, card.top, 0f, card.bottom, Color.argb(200, 255, 228, 246), Color.argb(60, 255, 228, 246), Shader.TileMode.CLAMP)
+        canvas.drawRoundRect(card, cardR, cardR, focusRim)
+
+        // Content fades in as the card settles on its row.
+        val alpha = ((1 - abs(fRow.x - row) * 2.5) * 255).toInt().coerceIn(0, 255)
+        if (alpha == 0) return
+        val layer = if (alpha < 255) canvas.saveLayerAlpha(card, alpha) else canvas.save()
+        canvas.clipRect(card)
+
+        val pad = dp(11f)
+        val ph = card.height() - 2 * pad
+        val pw = ph * 0.75f
+        tmp.set(card.left + pad, card.top + pad, card.left + pad + pw, card.bottom - pad)
+        drawPoster(canvas, ch, p, tmp, now)
+
+        val upW = if (card.width() > dp(640f)) dp(190f) else 0f
+        val x0 = tmp.right + dp(16f)
+        val x1 = card.right - pad - (if (upW > 0) upW + dp(18f) else 0f)
+        val tw = x1 - x0
+        var y = card.top + pad + dp(10f)
+
+        val airing = p != null && now >= p.start && now < p.end
+        val range = if (p != null) "${fmt.format(java.util.Date(p.start))} – ${fmt.format(java.util.Date(p.end))}" else ""
+        val caps = when {
+            p == null || p.gap -> "ON NOW"
+            p.isLive && airing -> "LIVE · $range"
+            airing -> "ON NOW · $range"
+            p.isNew -> "NEW · $range"
+            else -> range
+        }
+        canvas.drawText(fit(caps, cardCaps, tw), x0, y, cardCaps)
+        y += dp(22f)
+        val name = if (p == null || p.gap) ch.name else p.title
+        canvas.drawText(fit(name, cardTitle, tw), x0, y, cardTitle)
+        y += dp(17f)
+        val left = if (airing && p != null) "${maxOf(1, (p.end - now) / 60_000)} min left" else ""
+        val meta = listOf(p?.detail.orEmpty(), left).filter { it.isNotBlank() }.joinToString("  ·  ")
+        if (meta.isNotBlank()) { canvas.drawText(fit(meta, cardMeta, tw), x0, y, cardMeta); y += dp(8f) }
+        val desc = when { p == null || p.gap -> "Live programming · press OK to watch on Hulu"; p.desc.isNotBlank() -> p.desc; else -> "" }
+        if (desc.isNotBlank() && tw > dp(60f)) {
+            val key = "$desc|${tw.toInt()}"
+            if (key != descKey || descLayout == null) {
+                descKey = key
+                descLayout = StaticLayout.Builder.obtain(desc, 0, desc.length, cardBody, tw.toInt())
+                    .setMaxLines(2).setEllipsize(TextUtils.TruncateAt.END).setLineSpacing(0f, 1.12f)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL).build()
+            }
+            canvas.save(); canvas.translate(x0, y + dp(2f)); descLayout?.draw(canvas); canvas.restore()
+        }
+
+        // Up next on this channel
+        if (upW > 0f) {
+            val ux = card.right - pad - upW
+            fill.shader = null; fill.color = Color.argb(70, 255, 255, 255)
+            canvas.drawRect(ux - dp(18f), card.top + pad + dp(2f), ux - dp(17f), card.bottom - pad - dp(2f), fill)
+            var uy = card.top + pad + dp(10f)
+            canvas.drawText("UP NEXT", ux, uy, cardCaps)
+            val after = programsFor(ch).filter { !it.gap && it.start >= (p?.end ?: now) }.take(3)
+            cardMeta.typeface = Fonts.body(context, 600)
+            for (n in after) {
+                uy += dp(19f)
+                val tm = fmt.format(java.util.Date(n.start))
+                cardMeta.color = Color.argb(205, 255, 255, 255)
+                canvas.drawText(tm, ux, uy, cardMeta)
+                cardMeta.color = Color.WHITE
+                canvas.drawText(fit(n.title, cardMeta, upW - dp(40f)), ux + dp(38f), uy, cardMeta)
+            }
+            cardMeta.typeface = Fonts.body(context, 700); cardMeta.color = Color.WHITE
+            if (after.isEmpty()) { cardMeta.color = Color.argb(205, 255, 255, 255); canvas.drawText("More soon", ux, uy + dp(19f), cardMeta); cardMeta.color = Color.WHITE }
+        }
+        canvas.restoreToCount(layer)
+    }
+
+    /** The show's poster, or (no artwork / still loading) the channel's logo on soft glass. */
+    private fun drawPoster(canvas: Canvas, ch: Guide.Channel, p: Guide.Program?, r: RectF, now: Long) {
+        val pr = dp(11f)
+        val art = p?.art?.let { Art.get(it) }
+        canvas.save()
+        clip.reset(); clip.addRoundRect(r, pr, pr, Path.Direction.CW); canvas.clipPath(clip)
+        if (art != null) {
+            // centre-crop into the 3:4 frame
+            val s = maxOf(r.width() / art.width, r.height() / art.height)
+            val w = art.width * s; val h = art.height * s
+            tmp2.set(r.centerX() - w / 2, r.centerY() - h / 2, r.centerX() + w / 2, r.centerY() + h / 2)
+            bmpPaint.alpha = 255
+            canvas.drawBitmap(art, null, tmp2, bmpPaint)
+        } else {
+            fill.shader = LinearGradient(r.left, r.top, r.right, r.bottom, Color.argb(90, 20, 10, 50), Color.argb(60, 20, 10, 50), Shader.TileMode.CLAMP)
+            canvas.drawRect(r, fill); fill.shader = null
+            val logo = ch.logo?.let { Logos.get(cardLogoUrl(it)) }
+            if (logo != null) {
+                val ratio = logo.width.toFloat() / logo.height
+                var lw = r.width() * 0.68f; var lh = lw / ratio
+                if (lh > r.height() * 0.3f) { lh = r.height() * 0.3f; lw = lh * ratio }
+                tmp2.set(r.centerX() - lw / 2, r.centerY() - lh / 2, r.centerX() + lw / 2, r.centerY() + lh / 2)
+                bmpPaint.alpha = 240
+                canvas.drawBitmap(logo, null, tmp2, bmpPaint)
+            } else {
+                cardMeta.textAlign = Paint.Align.CENTER
+                canvas.drawText(fit(ch.name, cardMeta, r.width() - dp(10f)), r.centerX(), r.centerY() + dp(4f), cardMeta)
+                cardMeta.textAlign = Paint.Align.LEFT
+            }
+        }
+        // progress along the bottom of the poster for what's airing
+        if (p != null && !p.gap && now >= p.start && now < p.end) {
+            val f = ((now - p.start).toFloat() / (p.end - p.start)).coerceIn(0f, 1f)
+            fill.shader = null; fill.color = Color.argb(90, 0, 0, 0)
+            canvas.drawRect(r.left, r.bottom - dp(3f), r.right, r.bottom, fill)
+            fill.color = Color.WHITE
+            canvas.drawRect(r.left, r.bottom - dp(3f), r.left + r.width() * f, r.bottom, fill)
+        }
+        canvas.restore()
+        fill.shader = null; fill.style = Paint.Style.STROKE; fill.strokeWidth = dp(0.8f); fill.color = Color.argb(70, 255, 255, 255)
+        canvas.drawRoundRect(r, pr, pr, fill)
+        fill.style = Paint.Style.FILL
+    }
+    private val tmp2 = RectF()
+
     /** Title on top; underneath a quiet line: LIVE / NEW in Hearth pink, then time left or start time, then the episode. */
-    private fun drawCell(canvas: Canvas, p: Guide.Program, r: RectF, now: Long, airing: Boolean, focused: Boolean, ink: Int, inkA: (Int) -> Int) {
+    private fun drawCell(canvas: Canvas, p: Guide.Program, r: RectF, now: Long, airing: Boolean, ink: Int, inkA: (Int) -> Int) {
         val padL = dp(11f)
         val x = r.left + padL
         val avail = r.right - dp(9f) - x
         if (avail < dp(14f)) return
         val twoLines = r.width() > dp(70f) && !p.gap
-        title.typeface = Fonts.body(context, if (airing || focused) 700 else 600)
-        title.color = when { focused -> Color.WHITE; p.gap -> inkA(110); airing -> ink; else -> inkA(200) }
+        title.typeface = Fonts.body(context, if (airing) 700 else 600)
+        title.color = when { p.gap -> inkA(110); airing -> ink; else -> inkA(200) }
         val label = if (p.gap) "Live programming" else p.title
         if (!twoLines) {
             canvas.drawText(fit(label, title, avail), x, r.centerY() - (title.descent() + title.ascent()) / 2, title)
             return
         }
-        val titleBase = r.centerY() - dp(1.5f)
-        canvas.drawText(fit(label, title, avail), x, titleBase, title)
-
+        canvas.drawText(fit(label, title, avail), x, r.centerY() - dp(1.5f), title)
         val subBase = r.centerY() + dp(11.5f)
         var sx = x
-        val pink = if (focused) Color.WHITE else if (dark) 0xFFFF9FD0.toInt() else 0xFFC0267A.toInt()
+        val pink = if (dark) 0xFFFF9FD0.toInt() else 0xFFC0267A.toInt()
         val mark = when { p.isLive && airing -> "LIVE"; p.isNew -> "NEW"; else -> null }
         if (mark != null) {
             tag.color = pink
@@ -445,12 +566,10 @@ class GuideView(context: Context) : View(context) {
         }
         val time = if (airing) "${maxOf(1, (p.end - now) / 60_000)} min left" else fmt.format(java.util.Date(p.start))
         val line = listOf(time, p.detail).filter { it.isNotBlank() }.joinToString("  ·  ")
-        sub.color = if (focused) Color.argb(225, 255, 255, 255) else inkA(if (dark) 150 else 165)
+        sub.color = inkA(if (dark) 150 else 165)
         val room = r.right - dp(9f) - sx
         if (room > dp(14f)) canvas.drawText(fit(line, sub, room), sx, subBase, sub)
-
-        // Thin progress line on what's airing now
-        if (airing && !focused && r.width() > dp(40f)) {
+        if (airing && r.width() > dp(40f)) {
             val f = ((now - p.start).toFloat() / (p.end - p.start)).coerceIn(0f, 1f)
             val l = r.left + dp(10f); val rr = r.right - dp(10f)
             fill.shader = null; fill.color = inkA(if (dark) 26 else 40)
@@ -458,6 +577,43 @@ class GuideView(context: Context) : View(context) {
             fill.shader = LinearGradient(l, 0f, rr, 0f, Hearth.PURPLE, Hearth.PINK, Shader.TileMode.CLAMP)
             tmp.set(l, r.bottom - dp(4f), l + (rr - l) * f, r.bottom - dp(2.5f)); canvas.drawRoundRect(tmp, dp(1f), dp(1f), fill)
             fill.shader = null
+        }
+    }
+}
+
+/** Show posters for the guide's opened row: Gracenote artwork, cached on disk and in a small memory cache. */
+object Art {
+    private val mem = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
+    }
+    private val missing = HashSet<String>()
+    private val loading = HashSet<String>()
+    private val io = Executors.newFixedThreadPool(2)
+    private val main = Handler(Looper.getMainLooper())
+
+    fun get(id: String): Bitmap? = mem.get(id)
+
+    fun request(ctx: Context, id: String, done: () -> Unit) {
+        synchronized(loading) { if (mem.get(id) != null || id in missing || !loading.add(id)) return }
+        io.execute {
+            val dir = File(ctx.cacheDir, "art").apply { mkdirs() }
+            val f = File(dir, "$id.jpg")
+            var bmp: Bitmap? = null
+            try {
+                if (!f.exists()) {
+                    val c = (URL("https://zpmc.tmsimg.com/assets/$id.jpg?w=240").openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 8000; readTimeout = 12000
+                        setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 11; AFT) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36")
+                    }
+                    if (c.responseCode == 200) c.inputStream.use { i -> f.outputStream().use { it.write(i.readBytes()) } }
+                    c.disconnect()
+                    // keep the disk cache small
+                    dir.listFiles()?.takeIf { it.size > 400 }?.sortedBy { it.lastModified() }?.take(100)?.forEach { it.delete() }
+                }
+                if (f.exists()) bmp = BitmapFactory.decodeFile(f.absolutePath, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+            } catch (_: Exception) {}
+            synchronized(loading) { loading.remove(id); if (bmp == null) missing.add(id) }
+            if (bmp != null) { mem.put(id, bmp); main.post(done) }
         }
     }
 }
