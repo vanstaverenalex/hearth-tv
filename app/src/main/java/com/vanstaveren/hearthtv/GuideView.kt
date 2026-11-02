@@ -39,6 +39,8 @@ class Spring(var x: Double, private val omega: Double) {
     private var v = 0.0
     val moving get() = abs(target - x) > 1e-3 || abs(v) > 1e-3
     fun snap(to: Double) { x = to; target = to; v = 0.0 }
+    /** Give it a push (units per second); it settles back to [target] on its own. */
+    fun impulse(vel: Double) { v += vel }
     /** Advance by dt seconds (exact solution of the critically damped ODE, stable at any frame rate). */
     fun step(dt: Double) {
         val d = x - target
@@ -82,6 +84,13 @@ class GuideView(context: Context) : View(context) {
 
     private var row = 0
     private var cursor = System.currentTimeMillis()
+    /**
+     * Locked to what's on now unless the viewer deliberately browses: a double-press of ◀ or ▶
+     * steps to other times, and coming back to the live show locks again.
+     */
+    private var browsing = false
+    private var lastTapKey = 0
+    private var lastTapAt = 0L
 
     private val MIN = 60_000L
     private val SPAN = 120 * MIN
@@ -100,7 +109,8 @@ class GuideView(context: Context) : View(context) {
     private val scrollS = Spring(0.0, 14.0)
     private val winS = Spring(floor30(System.currentTimeMillis()).toDouble(), 14.0)
     private val fRow = Spring(0.0, 16.0)
-    private val springs = arrayOf(scrollS, winS, fRow)
+    private val nudge = Spring(0.0, 22.0)   // little sideways bump when ◀/▶ is pressed once while locked
+    private val springs = arrayOf(scrollS, winS, fRow, nudge)
     private var lastFrame = 0L
 
     private val title = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = dp(11.5f) }
@@ -150,6 +160,7 @@ class GuideView(context: Context) : View(context) {
 
     /** Jump to what's on right now, at the top of the list (used every time the guide opens). */
     fun resetToNow() {
+        browsing = false
         cursor = System.currentTimeMillis()
         row = 0
         scrollS.snap(0.0)
@@ -246,7 +257,32 @@ class GuideView(context: Context) : View(context) {
         invalidate()
     }
 
-    fun tick() { invalidate() }
+    /** Once a minute: while locked, follow the clock so the selection stays on what's airing. */
+    fun tick() {
+        if (!browsing && channels.isNotEmpty()) { cursor = System.currentTimeMillis(); retarget() } else invalidate()
+    }
+
+    private fun stepTime(dir: Int): Boolean {
+        val list = programsFor(channels[row]); val cur = focusedProgram() ?: return false
+        if (dir > 0) {
+            val next = list.firstOrNull { it.start >= cur.end } ?: return false
+            cursor = next.start + MIN
+        } else {
+            val earliest = floor30(System.currentTimeMillis()) - 30 * MIN
+            val prev = list.lastOrNull { it.end <= cur.start && it.end > earliest } ?: return false
+            cursor = maxOf(prev.start, earliest) + MIN
+        }
+        // Landing back on the live show re-locks to now.
+        val now = System.currentTimeMillis()
+        focusedProgram()?.let { if (now >= it.start && now < it.end) { browsing = false; cursor = now } }
+        return true
+    }
+
+    private fun bump(dir: Int) {
+        nudge.impulse(dir * dp(260f).toDouble())
+        if (lastFrame == 0L) lastFrame = SystemClock.uptimeMillis()
+        postInvalidateOnAnimation()
+    }
 
     // ---------------------------------------------------------------- input
 
@@ -256,16 +292,21 @@ class GuideView(context: Context) : View(context) {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> { if (row == 0) { onExitUp?.invoke(); return true }; row-- }
             KeyEvent.KEYCODE_DPAD_DOWN -> if (row < channels.size - 1) row++ else return true
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                val list = programsFor(channels[row]); val cur = focusedProgram()
-                val next = list.firstOrNull { cur != null && it.start >= cur.end } ?: return true
-                cursor = next.start + MIN
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                val earliest = floor30(System.currentTimeMillis()) - 30 * MIN
-                val list = programsFor(channels[row]); val cur = focusedProgram()
-                val prev = list.lastOrNull { cur != null && it.end <= cur.start && it.end > earliest } ?: return true
-                cursor = maxOf(prev.start, earliest) + MIN
+            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_LEFT -> {
+                val dir = if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) 1 else -1
+                if (!browsing) {
+                    if (event.repeatCount > 0) return true
+                    val t = SystemClock.uptimeMillis()
+                    if (lastTapKey == keyCode && t - lastTapAt < 450) {
+                        lastTapAt = 0L
+                        browsing = true
+                        if (!stepTime(dir)) { browsing = false; bump(dir); return true }
+                    } else {
+                        lastTapKey = keyCode; lastTapAt = t
+                        bump(dir)
+                        return true
+                    }
+                } else if (!stepTime(dir)) { bump(dir); return true }
             }
             KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD ->
                 row = minOf(channels.size - 1, row + page)
@@ -276,6 +317,7 @@ class GuideView(context: Context) : View(context) {
             }
             else -> return super.onKeyDown(keyCode, event)
         }
+        if (!browsing) cursor = System.currentTimeMillis()
         retarget()
         return true
     }
@@ -414,6 +456,7 @@ class GuideView(context: Context) : View(context) {
         val p = focusedProgram()
         val top = headerH + (fRow.x * rowH).toFloat() - scrollS.x.toFloat()
         card.set(tlLeft() + gap / 2, top + gap / 2, tlRight() - gap / 2, top + expH - gap / 2)
+        card.offset(nudge.x.toFloat(), 0f)
         // The halo around the card is drawn by [rim] (its own layer) so it can breathe without redrawing the grid.
         focusFill.shader = LinearGradient(card.left, card.top, card.right, card.bottom,
             Color.argb(235, 147, 72, 232), Color.argb(235, 230, 98, 172), Shader.TileMode.CLAMP)

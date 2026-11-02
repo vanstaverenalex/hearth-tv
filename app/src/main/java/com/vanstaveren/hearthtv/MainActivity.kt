@@ -416,7 +416,7 @@ class MainActivity : Activity() {
         })
 
         guideHint = TextView(this).apply {
-            text = "OK  Watch on Hulu     ☰  Favorite"
+            text = "OK  Watch on Hulu     ☰  Favorite     ▶▶  Later shows"
             style(8.5f, Fonts.body(this@MainActivity, 700), Color.WHITE, 0.02f)
         }
         guide.addView(guideHint, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply {
