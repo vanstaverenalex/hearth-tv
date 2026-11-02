@@ -1,0 +1,55 @@
+name: Build seamless backgrounds
+
+on:
+  push:
+    branches: [main]
+    paths: [backgrounds.json, tools/make_loop.sh, .github/workflows/backgrounds.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backgrounds
+  cancel-in-progress: false
+
+jobs:
+  loops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg jq
+
+      - name: Make sure the backgrounds release exists (never marked latest)
+        run: |
+          gh release view backgrounds >/dev/null 2>&1 || \
+            gh release create backgrounds --title "Hearth TV backgrounds" --latest=false \
+              --notes "Seamless 4K loops made from free Pexels clips (pexels.com/license). Built automatically from backgrounds.json."
+
+      - name: Encode new or changed clips
+        run: |
+          set -e
+          chmod +x tools/make_loop.sh
+          mkdir -p work
+          have=$(gh release view backgrounds --json assets --jq '.assets[].name' || true)
+          jq -c '.clips[]' backgrounds.json | while read -r c; do
+            id=$(echo "$c" | jq -r .id); v=$(echo "$c" | jq -r '.v // 1'); src=$(echo "$c" | jq -r .src)
+            name="$id.mp4"; marker="$id.v$v"
+            if echo "$have" | grep -qx "$name" && echo "$have" | grep -qx "$marker"; then
+              echo "✓ $id is up to date"; continue
+            fi
+            echo "▶ $id"
+            curl -fsSL --retry 3 -A "HearthTV-builder/1.0" -o work/src.mp4 "$src" || { echo "download failed: $id"; continue; }
+            tools/make_loop.sh work/src.mp4 "work/$name" 32 2 || { echo "encode failed: $id"; continue; }
+            : > "work/$marker"
+            gh release upload backgrounds "work/$name" "work/$marker" --clobber
+            rm -f work/src.mp4 "work/$name" "work/$marker"
+          done
+
+      - name: Summary
+        run: gh release view backgrounds --json assets --jq '.assets[] | select(.name|endswith(".mp4")) | "\(.name)  \(.size/1000000|floor) MB"'
