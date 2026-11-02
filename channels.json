@@ -60,6 +60,22 @@
    ]
   },
   {
+   "id": "wzzm",
+   "name": "WZZM 13",
+   "category": "local",
+   "aliases": [
+    "WZZM",
+    "ABC 13",
+    "WZZM 13"
+   ],
+   "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/WZZM_%282018%29.svg/960px-WZZM_%282018%29.svg.png",
+   "hulu": "https://www.hulu.com/watch/cfc285a3-50d0-43de-b780-15e4d95070e3",
+   "gn": [
+    "WZZMDT",
+    "WZZM"
+   ]
+  },
+  {
    "id": "cbs",
    "name": "CBS",
    "category": "local",
@@ -269,6 +285,21 @@
    ]
   },
   {
+   "id": "mlbn",
+   "name": "MLB Network",
+   "category": "sports",
+   "aliases": [
+    "MLB Network",
+    "MLBN"
+   ],
+   "logoSrc": "https://i.imgur.com/sA5V39D.png",
+   "hulu": "https://www.hulu.com/watch/140f4c08-13f0-4100-b19d-bb66cc5b1c55",
+   "gn": [
+    "MLBHD",
+    "MLBN"
+   ]
+  },
+  {
    "id": "golf",
    "name": "Golf",
    "category": "sports",
@@ -311,6 +342,18 @@
    "gn": [
     "DJCHHD"
    ]
+  },
+  {
+   "id": "pbskids",
+   "name": "PBS KIDS",
+   "category": "kids",
+   "aliases": [
+    "PBS KIDS",
+    "PBS Kids"
+   ],
+   "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/PBS_Kids_logo_%282022%29.svg/960px-PBS_Kids_logo_%282022%29.svg.png",
+   "hulu": "https://www.hulu.com/watch/bab2da35-0468-4a75-b45d-a9cf2aa01756",
+   "gn": []
   },
   {
    "id": "disneyxd",
@@ -671,6 +714,18 @@
    ]
   },
   {
+   "id": "adultswim",
+   "name": "Adult Swim",
+   "category": "entertainment",
+   "aliases": [
+    "Adult Swim",
+    "[adult swim]"
+   ],
+   "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Adult_Swim_2003_logo.svg/960px-Adult_Swim_2003_logo.svg.png",
+   "hulu": "https://www.hulu.com/watch/531d6bfb-1e19-4771-b9cf-f270a4ca846f",
+   "gn": []
+  },
+  {
    "id": "paramount",
    "name": "Paramount Net",
    "category": "entertainment",
@@ -761,6 +816,36 @@
    "gn": [
     "FXMHD",
     "FXM"
+   ]
+  },
+  {
+   "id": "tcm",
+   "name": "TCM",
+   "category": "movies",
+   "aliases": [
+    "TCM",
+    "Turner Classic Movies"
+   ],
+   "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/TCM_2021.svg/960px-TCM_2021.svg.png",
+   "hulu": "https://www.hulu.com/watch/7db3026e-8e34-4e5d-bd91-9c4b2f52067b",
+   "gn": [
+    "TCMHD",
+    "TCM"
+   ]
+  },
+  {
+   "id": "hallmark",
+   "name": "Hallmark",
+   "category": "movies",
+   "aliases": [
+    "Hallmark Channel",
+    "Hallmark"
+   ],
+   "logoSrc": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Hallmark_Channel.svg/960px-Hallmark_Channel.svg.png",
+   "hulu": "https://www.hulu.com/watch/b1f87a1d-2920-4c28-8acd-28ebecfffc2c",
+   "gn": [
+    "HALLHD",
+    "HALL"
    ]
   },
   {

@@ -107,6 +107,31 @@ class MainActivity : Activity() {
         prefs = Prefs(this)
         buildViews()
         setContentView(root)
+        if (intent?.getStringExtra(EXTRA_OPEN) == "guide") root.post { openGuide() }
+    }
+
+    /** Home button → always the home screen (overlays closed). Live/Guide button → our guide. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        when (intent.getStringExtra(EXTRA_OPEN)) {
+            "guide" -> { resetHome(); openGuide() }
+            else -> resetHome()
+        }
+    }
+
+    /** Snap back to the plain home screen: no overlay, dock focused on the first app. */
+    private fun resetHome() {
+        if (overlay != null) {
+            overlay = null
+            for (p in listOf(library, guide)) { p.animate().cancel(); p.visibility = View.GONE; p.alpha = 1f; p.translationY = 0f }
+            overlayDim.animate().cancel(); overlayDim.alpha = 0f; overlayDim.visibility = View.GONE
+            for (v in listOf(dock, clockBlock, topRight, clockHalo, brandHalo)) {
+                v.animate().cancel(); v.visibility = View.VISIBLE; v.alpha = 1f; v.translationY = 0f
+            }
+        }
+        favRow.scrollToPosition(0)
+        favRow.post { favRow.getChildAt(0)?.requestFocus() }
     }
 
     override fun onResume() {
@@ -411,6 +436,7 @@ class MainActivity : Activity() {
             text = "Listings: Gracenote · TVmaze · ESPN"
             style(7.5f, Fonts.body(this@MainActivity, 600), Color.WHITE)
         }
+        guideCredit.visibility = View.GONE
         guide.addView(guideCredit, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END).apply {
             rightMargin = dpi(76f); bottomMargin = dpi(17f)
         })
@@ -669,7 +695,6 @@ class MainActivity : Activity() {
                 guideBar.items = guideCats.map { it.name }
                 guideBar.select(guideCats.indexOfFirst { it.id == guideCat }.coerceAtLeast(0), animate = false)
                 guideView.setData(l, favs, guideCat)
-                guideCredit.text = "Listings: ${l.source}"
                 guideStatus.visibility = View.GONE
                 if (first && overlay == "guide") guideView.post { guideView.requestFocus() }
             }
@@ -709,6 +734,7 @@ class MainActivity : Activity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode in HomeWatcher.GUIDE_KEYS) { if (overlay != "guide") { resetHome(); openGuide() }; return true }
         if (overlay == "guide" && keyCode == KeyEvent.KEYCODE_MENU) { toggleChannelFavorite(); return true }
         return super.onKeyDown(keyCode, event)
     }
@@ -790,6 +816,9 @@ class MainActivity : Activity() {
                 lines += GlassMenu.Item(R.drawable.ic_network, if (home) "Home button: Hearth ✓" else "Home button: not set up yet") {}
                 lines += GlassMenu.Item(R.drawable.ic_sun,
                     if (found.isEmpty()) "Backlight: via screen brightness${if (write) " ✓" else " (needs setup)"}" else "Backlight: ${found.first().key}${if (write) " ✓" else " (needs setup)"}") {}
+                getSharedPreferences("hearth", MODE_PRIVATE).getString("last_key", null)?.let {
+                    lines += GlassMenu.Item(R.drawable.ic_info, "Last special remote button: $it") {}
+                }
                 lines += GlassMenu.Item(R.drawable.ic_info, "Version ${packageManager.getPackageInfo(packageName, 0).versionName}") {}
                 GlassMenu(this, dark, "Hearth setup", "This TV", null, lines).show()
             }
@@ -800,4 +829,9 @@ class MainActivity : Activity() {
 
     @Suppress("unused")
     private fun ViewGroup.firstFocusable(): View? = (0 until childCount).map { getChildAt(it) }.firstOrNull { it.isFocusable }
+
+    companion object {
+        /** "home" (Home button) or "guide" (remote's Live/Guide button), sent by [HomeWatcher]. */
+        const val EXTRA_OPEN = "hearth_open"
+    }
 }
