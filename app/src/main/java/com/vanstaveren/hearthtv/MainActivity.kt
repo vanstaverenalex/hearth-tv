@@ -19,7 +19,6 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import android.widget.VideoView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -39,14 +38,15 @@ class MainActivity : Activity() {
     private var dark = true
     private var weather: WeatherNow? = null
     private var allApps: List<AppEntry> = emptyList()
-    private var playingFile: File? = null
+    private var sceneKey: String? = null
+    private val bgWorker = Executors.newSingleThreadExecutor()
     private var lastWeatherAt = 0L
     private var firstFocusDone = false
     private var libraryTab = "all"
 
     // Views
     private lateinit var root: FrameLayout
-    private lateinit var video: VideoView
+    private lateinit var video: LoopPlayer
     private lateinit var scrim: View
     private lateinit var dateText: TextView
     private lateinit var clockText: TextView
@@ -88,7 +88,7 @@ class MainActivity : Activity() {
         reloadApps()
         if (System.currentTimeMillis() - lastWeatherAt > 20 * 60_000) refreshWeather()
         applyTheme(force = true)
-        if (playingFile != null) video.start()
+        video.resume()
     }
 
     override fun onPause() {
@@ -108,14 +108,7 @@ class MainActivity : Activity() {
             )
         }
 
-        video = VideoView(this).apply { isFocusable = false }
-        video.setOnPreparedListener { mp ->
-            mp.isLooping = true
-            mp.setVolume(0f, 0f)
-            video.animate().alpha(1f).setDuration(900).start()
-        }
-        video.setOnErrorListener { _, _, _ -> playingFile = null; true }
-        video.alpha = 0f
+        video = LoopPlayer(this)
         root.addView(video, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
 
         scrim = View(this)
@@ -343,7 +336,7 @@ class MainActivity : Activity() {
                 android.util.Log.i("HearthDisplay", status)
             }
         }
-        loadBackground()
+        refreshScene()
     }
 
     private fun styleModeBar() {
@@ -377,17 +370,16 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun loadBackground() {
-        val wantDark = dark
-        worker.execute {
-            val f = Backgrounds.todaysClip(this, wantDark) ?: return@execute
-            ui.post {
-                if (f == playingFile) return@post
-                playingFile = f
-                video.alpha = 0f
-                video.setVideoURI(Uri.fromFile(f))
-                video.start()
-            }
+    /** Pick the live background for this moment: light/dark, time of day, season and weather. */
+    private fun refreshScene() {
+        val scene = Backgrounds.contextNow(dark, weather)
+        if (scene.key == sceneKey && video.current != null) return
+        sceneKey = scene.key
+        android.util.Log.i("HearthBg", "scene $scene")
+        bgWorker.execute {
+            val f = Backgrounds.pick(this, scene)
+            if (f != null) ui.post { if (sceneKey == scene.key) video.play(f) }
+            Backgrounds.prefetchNext(this, scene)
         }
     }
 
@@ -398,6 +390,7 @@ class MainActivity : Activity() {
         clockText.text = SimpleDateFormat("h:mm", Locale.US).format(now)
         dateText.text = SimpleDateFormat("EEEE, MMMM d", Locale.US).format(now)
         applyTheme()
+        refreshScene()
         ui.postDelayed(::tick, 60_000 - (System.currentTimeMillis() % 60_000) + 50)
     }
 
