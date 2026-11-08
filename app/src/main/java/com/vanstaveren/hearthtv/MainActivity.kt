@@ -174,7 +174,7 @@ class MainActivity : Activity() {
         resumed = false
         santa.stop()
         ui.removeCallbacksAndMessages(null)
-        video.pause()
+        video.stop()     // never hold the decoder while another app is on screen
     }
 
     // ------------------------------------------------------------------ layout
@@ -207,10 +207,10 @@ class MainActivity : Activity() {
         card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false; clipToPadding = false
-            setPadding(dpi(15f), dpi(12f), dpi(13.5f), dpi(15f))
+            setPadding(dpi(SH + 15f), dpi(SH + 12f), dpi(SH + 13.5f), dpi(SH + 15f))
         }
-        cardGlass = GlassDrawable(this, PANEL_R, true)
-        card.background = LayerDrawable(arrayOf(panelTint(true), cardGlass))
+        cardGlass = GlassDrawable(this, PANEL_R, true, panel = true)
+        card.background = cardGlass
 
         // Header: mark · Hearth / Van Staveren Household · [☀ ☾ A] · ⏭ · ⚙
         val header = LinearLayout(this).apply {
@@ -236,6 +236,7 @@ class MainActivity : Activity() {
 
         modeBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            clipChildren = false; clipToPadding = false
             setPadding(dpi(1.5f), dpi(1.5f), dpi(1.5f), dpi(1.5f))
         }
         for ((key, icon) in listOf("light" to R.drawable.ic_sun, "dark" to R.drawable.ic_moon, "auto" to 0)) {
@@ -245,7 +246,7 @@ class MainActivity : Activity() {
                 text = "A"; gravity = Gravity.CENTER; style(8.5f, Fonts.body(this@MainActivity, 800), Color.WHITE)
             }
             b.contentDescription = when (key) { "light" -> "Light mode"; "dark" -> "Dark mode"; else -> "Automatic" }
-            controlKeys(b) { prefs.mode = key; applyTheme(force = true) }
+            controlKeys(b, 1.06f) { prefs.mode = key; applyTheme(force = true) }
             modeButtons += key to b
             modeBar.addView(b, LinearLayout.LayoutParams(dpi(21f), dpi(21f)))
         }
@@ -266,7 +267,10 @@ class MainActivity : Activity() {
 
         // Clock row: big time, day + date on the right sitting on the same baseline
         val clockRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = true }
-        clockText = TextView(this).apply { style(52f, Fonts.display(this@MainActivity, 300), Color.WHITE, -0.04f) }
+        clockText = TextView(this).apply {
+            style(50f, Fonts.clock(this@MainActivity), Color.WHITE, -0.025f)
+            fontFeatureSettings = "tnum"   // digits keep the same width, so the time never shifts
+        }
         clockRow.addView(clockText, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = -dpi(2f) })
         val dayCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.END
@@ -294,8 +298,9 @@ class MainActivity : Activity() {
         weatherRow.alpha = 0f
         card.addView(weatherRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(10.5f) })
 
-        root.addView(card, FrameLayout.LayoutParams(cardWidthPx(), -2, Gravity.TOP or Gravity.START).apply {
-            leftMargin = edge; topMargin = dpi(24f)
+        // (the view is SH bigger on every side: that margin holds the glass's soft shadow)
+        root.addView(card, FrameLayout.LayoutParams(cardWidthPx() + 2 * dpi(SH), -2, Gravity.TOP or Gravity.START).apply {
+            leftMargin = edge - dpi(SH); topMargin = dpi(24f - SH)
         })
 
         // ---- Dock: full width on the same margins. Live TV · Apps | favourites
@@ -303,10 +308,10 @@ class MainActivity : Activity() {
         dock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             clipChildren = false; clipToPadding = false
-            setPadding(dpi(GAP), dpi(GAP / 2), dpi(GAP / 2), dpi(GAP / 2))
+            setPadding(dpi(SH + GAP), dpi(SH + GAP / 2), dpi(SH + GAP / 2), dpi(SH + GAP / 2))
         }
-        dockGlass = GlassDrawable(this, PANEL_R, true)
-        dock.background = LayerDrawable(arrayOf(panelTint(true), dockGlass))
+        dockGlass = GlassDrawable(this, PANEL_R, true, panel = true)
+        dock.background = dockGlass
         liveButton = dockButton(R.drawable.ic_livetv, 22.5f, "Live TV") { openGuide() }
         appsButton = dockButton(R.drawable.ic_apps, 21f, "Apps") { openLibrary() }
         dock.addView(liveButton, LinearLayout.LayoutParams(dpi(TILE_W), dpi(TILE_H)).apply {
@@ -327,7 +332,7 @@ class MainActivity : Activity() {
         }
         dock.addView(favRow, LinearLayout.LayoutParams(0, -2, 1f))
         root.addView(dock, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
-            leftMargin = edge; rightMargin = edge; bottomMargin = dpi(24f)
+            leftMargin = edge - dpi(SH); rightMargin = edge - dpi(SH); bottomMargin = dpi(24f - SH)
         })
 
         buildOverlays()
@@ -345,14 +350,8 @@ class MainActivity : Activity() {
         return minOf(TILE_W, left / count - GAP)
     }
 
-    /** A darker (or lighter) wash under the glass, so text on it stays readable over any video. */
-    private fun panelTint(dark: Boolean) = GradientDrawable().apply {
-        cornerRadius = dp(PANEL_R)
-        setColor(if (dark) Color.argb(72, 6, 8, 22) else Color.argb(92, 255, 255, 255))
-    }
-
     /** D-pad wiring shared by every control in the card: OK acts, MENU opens setup status. */
-    private fun controlKeys(v: View, action: () -> Unit) {
+    private fun controlKeys(v: View, lift: Float = 1.1f, action: () -> Unit) {
         v.isFocusable = true
         v.setOnClickListener { action() }
         v.setOnKeyListener { _, code, e ->
@@ -360,7 +359,7 @@ class MainActivity : Activity() {
         }
         v.setOnFocusChangeListener { b, f ->
             b.animate().cancel()
-            b.animate().scaleX(if (f) 1.12f else 1f).scaleY(if (f) 1.12f else 1f)
+            b.animate().scaleX(if (f) lift else 1f).scaleY(if (f) lift else 1f)
                 .setDuration(if (f) 220 else 180).setInterpolator(Ease.out).start()
             styleModeBar()
         }
@@ -369,7 +368,7 @@ class MainActivity : Activity() {
     private fun circleButton(icon: Int, iconDp: Float, label: String, action: () -> Unit) = FrameLayout(this).apply {
         addView(ImageView(this@MainActivity).apply { setImageResource(icon) }, FrameLayout.LayoutParams(dpi(iconDp), dpi(iconDp), Gravity.CENTER))
         contentDescription = label
-        controlKeys(this, action)
+        controlKeys(this, action = action)
     }
 
     private class DockTile(val face: FrameLayout, val icon: ImageView, val label: TextView)
@@ -410,12 +409,7 @@ class MainActivity : Activity() {
         t.face.background = if (focused) LayerDrawable(arrayOf(
             GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Hearth.PURPLE, Hearth.PINK)).apply { cornerRadius = dp(TILE_R) },
             rimDrawable(this, TILE_R, true, dark),
-        )) else LayerDrawable(arrayOf(
-            GradientDrawable().apply {
-                cornerRadius = dp(TILE_R); setColor(if (dark) Color.argb(26, 255, 255, 255) else Color.argb(120, 255, 255, 255))
-            },
-            GlassDrawable(this, TILE_R, dark),
-        ))
+        )) else GlassDrawable(this, TILE_R, dark)
     }
 
     private fun headerTitle(text: String) = TextView(this).apply {
@@ -542,12 +536,10 @@ class MainActivity : Activity() {
         dateText.setTextColor(inkA(190))
         weatherRange.setTextColor(inkA(178))
         weatherIcon.setColorFilter(ink)
-        cardGlass.dark = dark; cardGlass.rebuild()
-        card.background = LayerDrawable(arrayOf(panelTint(dark), cardGlass))
+        cardGlass.dark = dark
         cardRule.setBackgroundColor(inkA(if (dark) 41 else 31))
 
-        dockGlass.dark = dark; dockGlass.rebuild()
-        dock.background = LayerDrawable(arrayOf(panelTint(dark), dockGlass))
+        dockGlass.dark = dark
         dockDivider.setBackgroundColor(inkA(if (dark) 51 else 41))
         for (t in dockButtons) styleDockButton(t, (t.face.parent as View).isFocused)
         favAdapter.dark = dark
@@ -768,33 +760,45 @@ class MainActivity : Activity() {
     private fun loadGuide() {
         if (guideLoading) return
         guideLoading = true
-        if (lineup == null) { guideStatus.text = "Loading listings…"; guideStatus.visibility = View.VISIBLE }
+        val firstEver = lineup == null
+        if (firstEver) { guideStatus.text = "Loading listings…"; guideStatus.visibility = View.VISIBLE }
+        // If this takes a while (slow network), say so instead of looking frozen.
+        val slowNote = Runnable { if (guideLoading && lineup == null) guideStatus.text = "Still loading listings… the internet seems slow" }
+        root.postDelayed(slowNote, 12_000)
         guideWorker.execute {
-            val l = try { Guide.load(this) } catch (e: Exception) { null }
+            // 1) What's saved on the TV shows instantly; 2) fresh listings replace it when they arrive.
+            if (firstEver) {
+                val saved = try { Guide.load(this, offline = true) } catch (e: Exception) { null }
+                if (saved != null && saved.channels.isNotEmpty()) ui.post { if (lineup == null) showLineup(saved) }
+            }
+            val l = try { Guide.load(this) } catch (e: Exception) { Diag.log(this, "guide: load failed: $e"); null }
             ui.post {
                 guideLoading = false
+                root.removeCallbacks(slowNote)
                 if (l == null || l.channels.isEmpty()) {
                     if (lineup == null) guideStatus.text = "Couldn't load the channel list. Check the internet connection."
                     return@post
                 }
-                val first = lineup == null
-                lineup = l
-                val favs = favChannels()
-                val present = l.channels.map { it.category }.toSet()
-                guideCats = Guide.categories.filter { c ->
-                    c.id == "all" || (c.id == "favorites" && favs.isNotEmpty()) || c.id in present
-                }.ifEmpty { listOf(Guide.Category("all", "All")) }
-                if (guideCats.none { it.id == guideCat }) guideCat = "all"
-                guideBar.items = guideCats.map { it.name }
-                guideBar.select(guideCats.indexOfFirst { it.id == guideCat }.coerceAtLeast(0), animate = false)
-                guideView.setData(l, favs, guideCat)
-                guideStatus.visibility = View.GONE
-                if (first && overlay == "guide") guideView.post { guideView.requestFocus() }
+                showLineup(l)
             }
         }
     }
 
-
+    private fun showLineup(l: Guide.Lineup) {
+        val first = lineup == null
+        lineup = l
+        val favs = favChannels()
+        val present = l.channels.map { it.category }.toSet()
+        guideCats = Guide.categories.filter { c ->
+            c.id == "all" || (c.id == "favorites" && favs.isNotEmpty()) || c.id in present
+        }.ifEmpty { listOf(Guide.Category("all", "All")) }
+        if (guideCats.none { it.id == guideCat }) guideCat = "all"
+        guideBar.items = guideCats.map { it.name }
+        guideBar.select(guideCats.indexOfFirst { it.id == guideCat }.coerceAtLeast(0), animate = false)
+        guideView.setData(l, favs, guideCat)
+        guideStatus.visibility = View.GONE
+        if (first && overlay == "guide") guideView.post { guideView.requestFocus() }
+    }
 
     private fun watchChannel(ch: Guide.Channel) {
         val hulu = "com.hulu.plus"
@@ -804,14 +808,17 @@ class MainActivity : Activity() {
         HomeWatcher.noteLaunch(this, hulu, amazonUi = false)
         Diag.log(this, "watch ${ch.id} -> ${link ?: "(Hulu home)"}")
         if (intent == null) { toast("Hulu isn't installed on this TV"); return }
-        try {
-            // Tested on the TV: while Hulu is open (profile picked) this link tunes straight to the channel.
-            // Restarting Hulu (CLEAR_TASK) makes it show an error first, so never do that.
-            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            if (link == null) Toast.makeText(this, "Opening Hulu — pick ${ch.name} in Live", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            android.util.Log.w("HearthGuide", "watch link failed: $e")
-            packageManager.getLaunchIntentForPackage(hulu)?.let { startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        launchSoon {
+            try {
+                // Tested on the TV: while Hulu is open (profile picked) this link tunes straight to the channel.
+                // Restarting Hulu (CLEAR_TASK) makes it show an error first, so never do that.
+                startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                if (link == null) Toast.makeText(this, "Opening Hulu — pick ${ch.name} in Live", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Diag.log(this, "watch link failed: $e")
+                try { packageManager.getLaunchIntentForPackage(hulu)?.let { startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                catch (_: Exception) { video.resume() }
+            }
         }
     }
 
@@ -861,9 +868,20 @@ class MainActivity : Activity() {
 
     private fun safeStart(i: Intent) {
         Diag.log(this, "start ${i.component?.flattenToShortString() ?: i.action} pkg=${i.`package`}")
-        try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) {
-            Diag.log(this, "start failed: $e"); toast("Couldn't open that")
+        launchSoon {
+            try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) {
+                Diag.log(this, "start failed: $e"); toast("Couldn't open that"); video.resume()
+            }
         }
+    }
+
+    /**
+     * Free the background video's hardware decoder first, then open the app a moment later.
+     * Hulu (and other streaming apps) show "reload or quit" when they start while a decoder is still busy.
+     */
+    private fun launchSoon(go: () -> Unit) {
+        video.stop()
+        root.postDelayed(go, 150)
     }
 
     private fun showAppMenu(app: AppEntry) {
@@ -942,6 +960,8 @@ class MainActivity : Activity() {
         private const val TILE_H = 75f
         private const val TILE_R = 13.5f
         private const val PANEL_R = 22.5f
+        /** Room around the card and dock for their glass shadow. */
+        private const val SH = GlassDrawable.SHADOW_DP
         /** "home" (Home button) or "guide" (remote's Live/Guide button), sent by [HomeWatcher]. */
         const val EXTRA_OPEN = "hearth_open"
         /** Amazon apps whose screens live inside the launcher package (Appstore, Settings, inputs). */

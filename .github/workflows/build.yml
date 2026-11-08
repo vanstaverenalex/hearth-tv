@@ -2,8 +2,8 @@ name: Build Hearth TV
 
 on:
   push:
-    branches: [main]
-    paths-ignore: [backgrounds.json, channels.json, README.md, tools/**, logos/**, .github/workflows/backgrounds.yml, .github/workflows/logos.yml, .github/workflows/candidates.yml, .github/workflows/guide.yml]
+    branches: [main, preview]
+    paths-ignore: [backgrounds.json, channels.json, README.md, tools/candidates.txt, tools/candidates.py, tools/logos.py, tools/mono.py, tools/guide_mirror.py, tools/make_loop.sh, logos/**, .github/workflows/backgrounds.yml, .github/workflows/logos.yml, .github/workflows/candidates.yml, .github/workflows/guide.yml]
   workflow_dispatch:
 
 permissions:
@@ -31,6 +31,52 @@ jobs:
 
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk HearthTV.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: HearthTV.apk
+
+  # Boots an Android TV emulator (Android 11, like Fire OS 8), opens every screen and
+  # screenshots it. A crash fails the build, so a broken app never reaches the TVs.
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run on the TV emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          script: bash tools/smoke.sh HearthTV.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shots
+          path: shots/
+
+  release:
+    needs: smoke
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2

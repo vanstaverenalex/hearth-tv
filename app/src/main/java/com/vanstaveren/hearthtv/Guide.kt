@@ -75,9 +75,11 @@ object Guide {
 
     private fun norm(s: String) = s.lowercase(Locale.US).replace(Regex("[^a-z0-9]"), "")
 
-    fun loadChannels(ctx: Context): List<Channel> {
+    fun loadChannels(ctx: Context, offline: Boolean = false): List<Channel> {
         val cache = File(ctx.filesDir, "channels.json")
-        val text = try { get(CHANNELS_URL).also { cache.writeText(it) } } catch (e: Exception) {
+        val text = if (offline) { if (cache.exists()) cache.readText() else return emptyList() }
+        else try { get(CHANNELS_URL).also { cache.writeText(it) } } catch (e: Exception) {
+            Diag.log(ctx, "guide: channel list download failed: ${e.message}")
             if (cache.exists()) cache.readText() else return emptyList()
         }
         return try {
@@ -206,11 +208,21 @@ object Guide {
      */
     private const val MIRROR = "https://github.com/vanstaverenalex/hearth-tv/releases/download/guide/gracenote.json"
 
-    private fun gracenoteTexts(ctx: Context, g: GnLineup): List<String> {
+    private fun gracenoteTexts(ctx: Context, g: GnLineup, offline: Boolean): List<String> {
         val dir = File(ctx.cacheDir, "guide").apply { mkdirs() }
         val mirrorCache = File(dir, "mirror.json")
         val now = System.currentTimeMillis()
+        if (offline) {
+            // Instant start: whatever was saved last time, so the guide never sits on "Loading".
+            val saved = ArrayList<String>()
+            if (mirrorCache.exists()) try { saved += mirrorCache.readText() } catch (_: Exception) {}
+            if (saved.isEmpty()) for (k in 0..1) File(dir, "gracenote-$k.json").takeIf { it.exists() }
+                ?.let { try { saved += it.readText() } catch (_: Exception) {} }
+            return saved
+        }
+        val t0 = System.currentTimeMillis()
         val mirror = fetchText(MIRROR, browser = false)?.takeIf { it.contains("\"channels\"") }
+        Diag.log(ctx, "guide: mirror ${if (mirror != null) "ok ${mirror.length / 1024} KB" else "failed"} in ${System.currentTimeMillis() - t0} ms")
         if (mirror != null) try { mirrorCache.writeText(mirror) } catch (_: Exception) {}
         val m = mirror ?: if (mirrorCache.exists()) try { mirrorCache.readText() } catch (_: Exception) { null } else null
         if (m != null) {
@@ -234,14 +246,14 @@ object Guide {
         return out
     }
 
-    private fun gracenote(ctx: Context, channels: List<Channel>, into: MutableMap<String, MutableList<Program>>): Int {
+    private fun gracenote(ctx: Context, channels: List<Channel>, into: MutableMap<String, MutableList<Program>>, offline: Boolean): Int {
         val g = gnLineup ?: return 0
         val byCall = HashMap<String, String>()
         channels.forEach { c -> c.gn.forEach { byCall.putIfAbsent(it, c.id) } }
         if (byCall.isEmpty()) return 0
         var count = 0
         val got = HashSet<String>()
-        for ((offset, json) in gracenoteTexts(ctx, g).withIndex()) {
+        for ((offset, json) in gracenoteTexts(ctx, g, offline).withIndex()) {
             val arr = try { JSONObject(json).getJSONArray("channels") } catch (e: Exception) { null } ?: continue
             for (i in 0 until arr.length()) {
                 val c = arr.getJSONObject(i)
@@ -298,10 +310,12 @@ object Guide {
         return null
     }
 
-    fun load(ctx: Context): Lineup {
-        val channels = loadChannels(ctx)
+    /** [offline] = only what's saved on the TV (instant); otherwise fetch fresh listings. */
+    fun load(ctx: Context, offline: Boolean = false): Lineup {
+        val started = System.currentTimeMillis()
+        val channels = loadChannels(ctx, offline)
         val rich = HashMap<String, MutableList<Program>>()
-        val gnCount = try { gracenote(ctx, channels, rich) } catch (e: Exception) { 0 }
+        val gnCount = try { gracenote(ctx, channels, rich, offline) } catch (e: Exception) { 0 }
         val raw = HashMap<String, MutableList<Program>>()
         val cal = Calendar.getInstance()
         val today = cal.time
@@ -310,7 +324,8 @@ object Guide {
         cal.add(Calendar.DAY_OF_YEAR, -2)
         val yesterday = cal.time
         // Only reach for the backup sources when Gracenote didn't cover every channel.
-        if (channels.any { rich[it.id].isNullOrEmpty() }) {
+        // (skipped when offline, or when the network is so slow that we've already spent 25 s)
+        if (!offline && System.currentTimeMillis() - started < 25_000 && channels.any { rich[it.id].isNullOrEmpty() }) {
             for (d in listOf(yesterday, today, tomorrow)) tvmaze(d, channels, raw)
             // ESPN days are US-Eastern; ask for today and tomorrow (UTC games after 8pm ET land on "tomorrow").
             for (d in listOf(today, tomorrow)) espn(d, channels, raw)
@@ -341,6 +356,7 @@ object Guide {
             out[ch.id] = filled
         }
         Log.i(TAG, "guide: ${channels.size} channels, gracenote=$gnCount, fallback=${raw.values.sumOf { it.size }}")
+        if (!offline) Diag.log(ctx, "guide: ${channels.size} channels, gracenote=$gnCount, fallback=${raw.values.sumOf { it.size }}, ${System.currentTimeMillis() - started} ms")
         val covered = channels.count { !rich[it.id].isNullOrEmpty() }
         val source = if (covered > 0) "Gracenote · $covered of ${channels.size} channels" + (if (covered < channels.size) " · TVmaze · ESPN" else "")
             else "Basic listings (TVmaze · ESPN) · Gracenote unreachable"

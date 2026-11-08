@@ -26,6 +26,7 @@ class LoopPlayer(context: Context) : FrameLayout(context), SurfaceHolder.Callbac
     private var pending: File? = null
     var current: File? = null
         private set
+    private var errors = 0
     private var videoW = 16
     private var videoH = 9
 
@@ -50,7 +51,22 @@ class LoopPlayer(context: Context) : FrameLayout(context), SurfaceHolder.Callbac
     }
 
     fun pause() { try { player?.pause() } catch (_: Exception) {} }
-    fun resume() { try { if (player?.isPlaying == false) player?.start() } catch (_: Exception) {} }
+
+    /**
+     * Let go of the video decoder completely. Called before Hearth opens another app: TV chips have
+     * only a few hardware decoders, and an app that can't get one when it starts (Hulu) shows an error.
+     */
+    fun stop() {
+        release()
+        veil.animate().cancel(); veil.alpha = 1f
+    }
+
+    /** Pick up again after [stop] or [pause]; a released clip restarts behind the veil and fades in. */
+    fun resume() {
+        val p = player
+        if (p == null) { current?.let { f -> if (holderReady) start(f) else pending = f }; return }
+        try { if (!p.isPlaying) p.start() } catch (_: Exception) {}
+    }
 
     private fun start(file: File) {
         release()
@@ -66,14 +82,20 @@ class LoopPlayer(context: Context) : FrameLayout(context), SurfaceHolder.Callbac
             mp.setOnVideoSizeChangedListener { _, w, h -> if (w > 0 && h > 0) { videoW = w; videoH = h; requestLayout() } }
             mp.setOnInfoListener { _, what, _ ->
                 if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                    errors = 0
                     veil.animate().cancel()
                     veil.animate().alpha(0f).setDuration(1100).setInterpolator(Ease.inOut).start()
                 }
                 false
             }
             mp.setOnErrorListener { _, what, extra ->
+                // Usually the decoder was taken by another app; keep the file and try again shortly.
                 Log.w("HearthBg", "playback error $what/$extra on ${file.name}")
-                file.delete(); current = null; true
+                release()
+                errors++
+                if (errors >= 3) { file.delete(); current = null; errors = 0 }   // really broken: fetch it again later
+                else postDelayed({ if (player == null && current == file && holderReady && isShown) start(file) }, 1500)
+                true
             }
             mp.setOnPreparedListener { it.start() }
             mp.prepareAsync()
