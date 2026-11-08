@@ -1,11 +1,12 @@
 {
- "_about": "Live backgrounds for Hearth TV: calm 4K landscapes, played at half speed (no time-lapses). A GitHub Action turns each Pexels source into a seamless 4K loop and uploads it to the 'backgrounds' release as <id>.mp4 (+ <id>.jpg preview). The TV shuffles through all of them; the skip button in the light/dark pill moves to the next. All sources are free under the Pexels license. Bump 'v' on a clip to re-encode it.",
+ "_about": "Live backgrounds for Hearth TV: calm 4K landscapes, played at half speed (no time-lapses). A GitHub Action turns each Pexels source into a seamless 4K loop and uploads it to the 'backgrounds' release as <id>.mp4 (+ <id>.jpg preview). The TV shuffles through all of them; the skip button in the light/dark pill moves to the next. All sources are free under the Pexels license. Bump 'v' on a clip to re-encode it. 'place' (optional) is shown in the corner of the home screen, like Windows Spotlight; only set it when the filming location is known.",
  "release": "https://github.com/vanstaverenalex/hearth-tv/releases/download/backgrounds/",
  "clips": [
   {
    "id": "alpine-lake-valley",
    "v": 1,
-   "src": "https://videos.pexels.com/video-files/34623325/14673675_3840_2160_30fps.mp4"
+   "src": "https://videos.pexels.com/video-files/34623325/14673675_3840_2160_30fps.mp4",
+   "place": "Swiss Alps, Switzerland"
   },
   {
    "id": "clouds-at-dusk",
@@ -15,17 +16,20 @@
   {
    "id": "swiss-alps-lake",
    "v": 1,
-   "src": "https://videos.pexels.com/video-files/32873553/14011499_3840_2160_24fps.mp4"
+   "src": "https://videos.pexels.com/video-files/32873553/14011499_3840_2160_24fps.mp4",
+   "place": "Swiss Alps, Switzerland"
   },
   {
    "id": "snowy-range",
    "v": 1,
-   "src": "https://videos.pexels.com/video-files/28891517/12521450_3840_2160_24fps.mp4"
+   "src": "https://videos.pexels.com/video-files/28891517/12521450_3840_2160_24fps.mp4",
+   "place": "Dolomites, Italy"
   },
   {
    "id": "mountain-lake-calm",
    "v": 1,
-   "src": "https://videos.pexels.com/video-files/39827348/16986941_3840_2160_30fps.mp4"
+   "src": "https://videos.pexels.com/video-files/39827348/16986941_3840_2160_30fps.mp4",
+   "place": "Alps, Austria"
   },
   {
    "id": "forest-lake-autumn",
@@ -45,7 +49,8 @@
   {
    "id": "clouds-over-ridge",
    "v": 1,
-   "src": "https://videos.pexels.com/video-files/12078525/12078525-uhd_3840_2160_30fps.mp4"
+   "src": "https://videos.pexels.com/video-files/12078525/12078525-uhd_3840_2160_30fps.mp4",
+   "place": "Carpathian Mountains"
   },
   {
    "id": "sea-of-clouds",
@@ -55,12 +60,14 @@
   {
    "id": "snowy-alps",
    "v": 1,
-   "src": "https://videos.pexels.com/video-files/34765999/14738970_3840_2160_30fps.mp4"
+   "src": "https://videos.pexels.com/video-files/34765999/14738970_3840_2160_30fps.mp4",
+   "place": "Zermatt, Switzerland"
   },
   {
    "id": "white-cliffs",
    "v": 1,
-   "src": "https://videos.pexels.com/video-files/29779432/12795983_3840_2160_30fps.mp4"
+   "src": "https://videos.pexels.com/video-files/29779432/12795983_3840_2160_30fps.mp4",
+   "place": "Chalk cliffs, southern England"
   }
  ]
 }
