@@ -67,12 +67,14 @@ jobs:
           script: bash tools/smoke.sh HearthTV.apk
       - name: Publish screenshots (release "preview-shots", never marked latest)
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view preview-shots >/dev/null 2>&1 || gh release create preview-shots --title "Emulator screenshots" --latest=false --notes "Screens from the last emulator check."
           gh release view preview-shots --json assets --jq '.assets[].name' | while read -r n; do gh release delete-asset preview-shots "$n" -y; done
-          cd shots && echo "${{ github.sha }} run ${{ github.run_id }}" > build.txt && gh release upload preview-shots * --clobber
+          cd shots && echo "${{ github.sha }} run ${{ github.run_id }}" > build.txt
+          for f in *; do for t in 1 2 3; do gh release upload preview-shots "$f" --clobber && break; sleep 5; done; done
 
   release:
     needs: smoke

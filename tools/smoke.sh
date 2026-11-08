@@ -42,6 +42,10 @@ adb shell am start -n $ACT --es hearth_open apps --es hearth_shot dark
 shot apps-dark 5
 adb shell am start -n $ACT --es hearth_open apps --es hearth_shot light
 shot apps-light 5
+adb shell am start -n $ACT --es hearth_open home --es hearth_shot dark
+shot home-dark 5
+key KEYCODE_DPAD_UP
+shot card-focus-dark 2
 adb shell am start -n $ACT --es hearth_open home --es hearth_shot clear
 shot home-again 4
 
