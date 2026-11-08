@@ -28,6 +28,13 @@ class TileAdapter(
         set(v) { if (field != v) { field = v; notifyDataSetChanged() } }
 
     var dark = true
+
+    /** True while the GPU draws the frosted cards' glass (their border included). */
+    var gpuGlass = false
+        set(v) { if (field != v) { field = v; notifyDataSetChanged() } }
+
+    private fun rimFor(card: View, focused: Boolean) =
+        if (gpuGlass && card.tag == GLASS_TAG && !focused) null else rimDrawable(card.context, radiusDp, focused, dark)
         set(v) { field = v; notifyDataSetChanged() }
 
     var items: List<AppEntry> = emptyList()
@@ -94,7 +101,7 @@ class TileAdapter(
             animateScale(v, if (focused) 1.06f else 1f)
             v.translationZ = if (focused) 1f else 0f   // draw above neighbours; no shadow layer
             glow.show(focused)
-            card.foreground = rimDrawable(ctx, radiusDp, focused, dark)
+            card.foreground = rimFor(card, focused)
         }
         return holder
     }
@@ -118,8 +125,12 @@ class TileAdapter(
             val hi = Color.HSVToColor(floatArrayOf(hsv[0], hsv[1] * 0.9f, minOf(1f, hsv[2] + 0.16f)))
             val lo = Color.HSVToColor(floatArrayOf(hsv[0], hsv[1], maxOf(0f, hsv[2] - 0.14f)))
             GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(hi, lo)).apply { cornerRadius = ctx.dp(radiusDp) }
-        } else GlassDrawable(ctx, radiusDp, dark)   // frosted, like every other card
-        h.card.foreground = rimDrawable(ctx, radiusDp, h.root.isFocused, dark)
+        } else null
+        // Frosted cards (Settings, Fire TV Home, apps without art): the GPU draws their glass when it can.
+        val glass = h.card.background == null
+        h.card.tag = if (glass) GLASS_TAG else null
+        if (glass && !gpuGlass) h.card.background = GlassDrawable(ctx, radiusDp, dark)
+        h.card.foreground = rimFor(h.card, h.root.isFocused)
 
         if (banner != null) {
             h.banner.setImageDrawable(banner)
@@ -157,4 +168,6 @@ class TileAdapter(
             } else false
         }
     }
+
+    companion object { const val GLASS_TAG = "hearth-glass" }
 }

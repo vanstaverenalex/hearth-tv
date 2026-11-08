@@ -88,7 +88,27 @@ class GlideGrid(context: Context) : RecyclerView(context) {
         overScrollMode = OVER_SCROLL_NEVER
     }
 
+    /** The grid's fade band (view px) for the GPU glass under its cards; see GuideView.glassFade. */
+    fun glassFade(out: FloatArray) {
+        val off = computeVerticalScrollOffset().toFloat()
+        val range = (computeVerticalScrollRange() - computeVerticalScrollExtent()).toFloat()
+        val ramp = context.dp(48f)
+        val topK = (off / ramp).coerceIn(0f, 1f)
+        val botK = ((range - off) / ramp).coerceIn(0f, 1f)
+        if (topK > 0.01f) { out[0] = fadeTopStart; out[1] = fadeTopEnd } else { out[0] = -1e6f; out[1] = -1e6f }
+        if (botK > 0.01f) { val y0 = height - paddingBottom - fadeBottom * 0.2f; out[2] = y0; out[3] = y0 + fadeBottom }
+        else { out[2] = 1e6f; out[3] = 1e6f }
+    }
+
+    /** Called after each draw, so the glass can follow the cards exactly. */
+    var onGlass: (() -> Unit)? = null
+
     override fun dispatchDraw(canvas: Canvas) {
+        drawGrid(canvas)
+        onGlass?.invoke()
+    }
+
+    private fun drawGrid(canvas: Canvas) {
         val off = computeVerticalScrollOffset().toFloat()
         val range = (computeVerticalScrollRange() - computeVerticalScrollExtent()).toFloat()
         val ramp = context.dp(48f)

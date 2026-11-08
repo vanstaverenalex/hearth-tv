@@ -114,6 +114,9 @@ class MainActivity : Activity() {
         buildViews()
         setContentView(root)
         video.scene.onGlassFailed = { useDrawnGlass() }
+        setGlassFlags(true)
+        guideView.onGlass = { pushGlass() }
+        libGrid.onGlass = { pushGlass() }
         root.viewTreeObserver.addOnPreDrawListener { pushGlass(); true }
         if (intent?.getStringExtra(EXTRA_OPEN) == "guide") root.post { openGuide() }
         intent?.let { root.post { handleShot(it) } }
@@ -157,7 +160,7 @@ class MainActivity : Activity() {
                 v.animate().cancel(); v.visibility = View.VISIBLE; v.alpha = 1f; v.translationY = 0f
             }
             placeTag.animate().cancel(); placeTag.translationY = 0f
-            if (placeText.text.isNotEmpty()) { placeTag.visibility = View.VISIBLE; placeTag.alpha = 0.92f }
+            if (placeText.text.isNotEmpty()) { placeTag.visibility = View.VISIBLE; placeTag.alpha = 1f }
         }
         favRow.scrollToPosition(0)
         focusLive()
@@ -210,13 +213,14 @@ class MainActivity : Activity() {
         // Where the current scene was filmed, top-right (like Windows Spotlight)
         placeTag = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; alpha = 0f
+            setPadding(dpi(11f), dpi(6f), dpi(12f), dpi(6f))   // a small frosted pill (GPU glass)
         }
         placeIcon = ImageView(this).apply { setImageResource(R.drawable.ic_pin) }
         placeText = TextView(this).apply { style(10.5f, Fonts.body(this@MainActivity, 600), Color.WHITE, 0.01f) }
         placeTag.addView(placeIcon, LinearLayout.LayoutParams(dpi(11f), dpi(11f)).apply { marginEnd = dpi(5f) })
         placeTag.addView(placeText)
         root.addView(placeTag, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
-            rightMargin = dpi(EDGE + 4f); topMargin = dpi(30f)
+            rightMargin = dpi(EDGE); topMargin = dpi(24f)
         })
 
         // ---- One grid for the whole home screen: the info card and the dock share the same
@@ -446,30 +450,99 @@ class MainActivity : Activity() {
         Diag.log(this, "glass: GPU glass unavailable, using drawn glass")
         card.background = cardGlass; dock.background = dockGlass
         for (t in dockButtons) styleDockButton(t, (t.face.parent as View).isFocused)
+        setGlassFlags(false)
+        applyTheme(force = false)
         video.scene.setPanels(emptyList())
     }
 
-    /** Tell the GL layer where each pane of glass is right now (called before every UI frame). */
+    private var dimColor = Color.argb(168, 4, 6, 18)
+    private val fadeBand = FloatArray(4)
+
+    private fun setGlassFlags(on: Boolean) {
+        guideView.gpuGlass = on
+        guideBar.gpuGlass = on; libBar.gpuGlass = on
+        libAdapter.gpuGlass = on
+    }
+
+    /**
+     * Tell the GL layer where every pane of glass is right now. One look everywhere: the home card,
+     * dock, tiles and location pill; the guide's and app drawer's tab bars, cells, cards and hint.
+     * Called before every UI frame, and right after the guide / app grid draw (they move on their own).
+     */
     private fun pushGlass() {
         if (!gpuGlass) return
-        val sh = dpi(SH).toFloat()
-        val list = ArrayList<GlassScene.Panel>(4)
-        fun pane(v: View, inset: Float, radiusDp: Float, alpha: Float, frost: Float, shadow: Float) {
-            if (!v.isShown || alpha <= 0.004f || v.width == 0) return
-            v.getLocationInWindow(loc)
-            var sx = 1f; var sy = 1f
+        val list = ArrayList<GlassScene.Panel>(48)
+        val rootLoc = IntArray(2).also { root.getLocationInWindow(it) }
+
+        /** Visible alpha of [v] (0 when it or a parent is hidden), and its scale on screen. */
+        fun seen(v: View, scale: FloatArray): Float {
+            var a = 1f; var sx = 1f; var sy = 1f
             var p: View? = v
-            while (p != null && p !== root) { sx *= p.scaleX; sy *= p.scaleY; p = p.parent as? View }
-            val l = loc[0] + inset * sx; val t = loc[1] + inset * sy
-            list += GlassScene.Panel(l, t, l + (v.width - 2 * inset) * sx, t + (v.height - 2 * inset) * sy,
-                dp(radiusDp) * sx, alpha, frost, shadow)
+            while (p != null && p !== root) {
+                if (p.visibility != View.VISIBLE) return 0f
+                a *= p.alpha; sx *= p.scaleX; sy *= p.scaleY
+                p = p.parent as? View
+            }
+            scale[0] = sx; scale[1] = sy
+            return a
         }
-        val shadow = if (dark) 0.42f else 0.16f
-        pane(card, sh, PANEL_R, card.alpha, 0.75f, shadow)
-        pane(dock, sh, PANEL_R, dock.alpha, 0.50f, shadow)
-        for (t in dockButtons) {
-            val holder = t.face.parent as View
-            if (!holder.isFocused) pane(t.face, 0f, TILE_R, dock.alpha, 0.35f, 0f)
+        val sc = FloatArray(2)
+        fun pane(v: View, inset: Float, radiusPx: Float, shadow: Float = 0f, tone: Float = 0f) {
+            if (v.width == 0) return
+            val a = seen(v, sc)
+            if (a <= 0.004f) return
+            v.getLocationInWindow(loc)
+            val l = loc[0] - rootLoc[0] + inset * sc[0]; val t = loc[1] - rootLoc[1] + inset * sc[1]
+            list += GlassScene.Panel(l, t, l + (v.width - 2 * inset) * sc[0], t + (v.height - 2 * inset) * sc[1],
+                minOf(radiusPx * sc[0], (v.height - 2 * inset) * sc[1] / 2f), a, tone, shadow)
+        }
+        /** Cells of a scrolling view, given in its own pixels, faded like its content. */
+        fun cells(host: View, rects: List<RectF>, tones: List<Float>?, radiusPx: Float, fade: FloatArray) {
+            val a = seen(host, sc)
+            if (a <= 0.004f || rects.isEmpty()) return
+            host.getLocationInWindow(loc)
+            val ox = (loc[0] - rootLoc[0]).toFloat(); val oy = (loc[1] - rootLoc[1]).toFloat()
+            fun fy(v: Float) = if (kotlin.math.abs(v) >= 1e5f) v else v + oy
+            for ((i, r) in rects.withIndex()) {
+                if (list.size >= GlassScene.MAX) break
+                list += GlassScene.Panel(r.left + ox, r.top + oy, r.right + ox, r.bottom + oy, radiusPx, a,
+                    tones?.getOrNull(i) ?: 0f, 0f, fy(fade[0]), fy(fade[1]), fy(fade[2]), fy(fade[3]))
+            }
+        }
+
+        // Behind the guide / app drawer: the dim, drawn here so their glass sits on top of it, undimmed.
+        val dimA = seen(overlayDim, sc)
+        if (dimA > 0.004f) list += GlassScene.Panel(0f, 0f, root.width.toFloat(), root.height.toFloat(), 0f, dimA, dim = dimColor)
+
+        // Home
+        val sh = dpi(SH).toFloat()
+        val shadow = if (dark) 0.30f else 0.12f
+        pane(card, sh, dp(PANEL_R), shadow)
+        pane(dock, sh, dp(PANEL_R), shadow)
+        for (t in dockButtons) if (!(t.face.parent as View).isFocused) pane(t.face, 0f, dp(TILE_R))
+        if (placeText.text.isNotEmpty()) pane(placeTag, 0f, 999f)
+
+        // Live TV
+        pane(guideBar, 0f, 999f)
+        guideView.glassFade(fadeBand)
+        cells(guideView, guideView.glassCells, guideView.glassTones, dp(10f), fadeBand)
+
+        // Apps
+        pane(libBar, 0f, 999f)
+        pane(libHint, 0f, dp(14f))
+        if (seen(libGrid, sc) > 0.004f) {
+            val rects = ArrayList<RectF>()
+            for (i in 0 until libGrid.childCount) {
+                val tile = libGrid.getChildAt(i)
+                val face = tile.findViewWithTag<View>(TileAdapter.GLASS_TAG) ?: continue
+                // tile → grid coordinates, including its focus scale
+                val s = tile.scaleX
+                val cx = tile.left + tile.width / 2f + tile.translationX; val cy = tile.top + tile.height / 2f + tile.translationY
+                val fl = cx + (face.left - tile.width / 2f) * s; val ft = cy + (face.top - tile.height / 2f) * s
+                rects += RectF(fl, ft, fl + face.width * s, ft + face.height * s)
+            }
+            libGrid.glassFade(fadeBand)
+            cells(libGrid, rects, null, dp(18f) * 1f, fadeBand)
         }
         video.scene.setPanels(list)
     }
@@ -602,7 +675,7 @@ class MainActivity : Activity() {
         video.scene.dark = dark
         val tagInk = if (dark) Color.WHITE else Hearth.INK_DARK
         placeText.setTextColor(tagInk); placeIcon.setColorFilter(tagInk)
-        placeText.setShadowLayer(dp(6f), 0f, dp(1f), if (dark) Color.argb(150, 0, 0, 0) else Color.argb(200, 255, 255, 255))
+        placeTag.background = if (gpuGlass) null else GlassDrawable(this, 14f, dark)
         cardRule.setBackgroundColor(inkA(if (dark) 41 else 31))
 
         dockGlass.dark = dark
@@ -610,13 +683,14 @@ class MainActivity : Activity() {
         for (t in dockButtons) styleDockButton(t, (t.face.parent as View).isFocused)
         favAdapter.dark = dark
         libAdapter.dark = dark
-        overlayDim.setBackgroundColor(if (dark) Color.argb(168, 4, 6, 18) else Color.argb(150, 236, 242, 248))
+        dimColor = if (dark) Color.argb(168, 4, 6, 18) else Color.argb(150, 236, 242, 248)
+        overlayDim.setBackgroundColor(if (gpuGlass) Color.TRANSPARENT else dimColor)   // the GPU draws it under the glass
         video.veilColor = if (dark) 0xFF080C1E.toInt() else 0xFFE6EEF6.toInt()
         for (t in listOf(libTitle, guideTitle)) t.setTextColor(ink)
         for (t in listOf(guideHint, guideStatus)) t.setTextColor(sub)
         guideCredit.setTextColor(Color.argb(110, Color.red(ink), Color.green(ink), Color.blue(ink)))
         libHint.setTextColor(if (dark) Color.argb(215, 255, 255, 255) else Hearth.INK_DARK)
-        libHint.background = GlassDrawable(this, 14f, dark)
+        libHint.background = if (gpuGlass) null else GlassDrawable(this, 14f, dark)
         libBar.dark = dark; guideBar.dark = dark; guideView.dark = dark
         libGrid.dark = dark
         styleModeBar()
@@ -705,7 +779,7 @@ class MainActivity : Activity() {
             if (place == null) { placeText.text = ""; placeTag.visibility = View.GONE; return@withEndAction }
             placeText.text = place
             placeTag.visibility = View.VISIBLE
-            placeTag.animate().alpha(if (overlay == null) 0.92f else 0f).setDuration(700).setStartDelay(500)
+            placeTag.animate().alpha(if (overlay == null) 1f else 0f).setDuration(700).setStartDelay(500)
                 .setInterpolator(Ease.out).start()
         }.start()
     }
@@ -842,7 +916,7 @@ class MainActivity : Activity() {
         placeTag.animate().cancel()
         if (placeText.text.isNotEmpty()) {
             placeTag.visibility = View.VISIBLE
-            placeTag.animate().alpha(0.92f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).start()
+            placeTag.animate().alpha(1f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).start()
         }
         val btn = if (which == "apps") appsButton else liveButton
         dock.post { btn?.requestFocus() }

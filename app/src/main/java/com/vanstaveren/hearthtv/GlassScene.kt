@@ -29,14 +29,19 @@ import javax.microedition.khronos.opengles.GL10
  */
 class GlassScene(context: Context) : GLSurfaceView(context), GLSurfaceView.Renderer, SurfaceTexture.OnFrameAvailableListener {
 
-    /** One pane of glass, in this view's pixels. */
+    /** One pane of glass (or a full-screen dim), in this view's pixels. */
     data class Panel(
         val left: Float, val top: Float, val right: Float, val bottom: Float,
         val radius: Float, val alpha: Float,
-        /** Kept for callers; the frost amount is fixed by the blurred twin. */
-        val frost: Float,
+        /** -1 … 1: a fainter or brighter pane (empty guide slots / what's on now). */
+        val tone: Float = 0f,
         /** Shadow strength under the pane (0 = none). */
-        val shadow: Float,
+        val shadow: Float = 0f,
+        /** Soft fade band at the top (invisible above [fadeTop0], full at [fadeTop1]) and bottom of a scrolling list. */
+        val fadeTop0: Float = -1e6f, val fadeTop1: Float = -1e6f,
+        val fadeBot0: Float = 1e6f, val fadeBot1: Float = 1e6f,
+        /** Non-zero: not glass, a plain tint (ARGB) over this rect, e.g. the dim behind the guide. */
+        val dim: Int = 0,
     )
 
     /** Main thread: the surface for the blurred twin's player is ready (or gone, when null). */
@@ -158,13 +163,20 @@ class GlassScene(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         GLES20.glEnableVertexAttribArray(a)
         quad.position(0)
         GLES20.glVertexAttribPointer(a, 2, GLES20.GL_FLOAT, false, 0, quad)
+        val uFade = GLES20.glGetUniformLocation(prog, "uFade")
+        val uDim = GLES20.glGetUniformLocation(prog, "uDim")
         for (p in ps.take(MAX)) {
             // view pixels (y down) → buffer pixels (y up)
             val l = p.left * sx; val r = p.right * sx
             val t = bufH - p.top * sy; val b = bufH - p.bottom * sy
             GLES20.glUniform4f(uRect, (l + r) / 2, (t + b) / 2, (r - l) / 2, (t - b) / 2)
-            GLES20.glUniform4f(uP, p.radius * sx, p.alpha, 0f, p.shadow)
-            val m = if (p.shadow > 0f) 40f * px else 2f
+            GLES20.glUniform4f(uP, p.radius * sx, p.alpha, p.tone, p.shadow)
+            fun fy(v: Float) = if (kotlin.math.abs(v) >= 1e5f) -v else bufH - v * sy   // "none" stays far away
+            GLES20.glUniform4f(uFade, fy(p.fadeTop0), fy(p.fadeTop1), fy(p.fadeBot0), fy(p.fadeBot1))
+            val c = p.dim
+            GLES20.glUniform4f(uDim, android.graphics.Color.red(c) / 255f, android.graphics.Color.green(c) / 255f,
+                android.graphics.Color.blue(c) / 255f, android.graphics.Color.alpha(c) / 255f)
+            val m = if (p.shadow > 0f) 44f * px else 2f
             GLES20.glUniform4f(uBox, (l - m) / bufW * 2 - 1, (b - m) / bufH * 2 - 1, (r + m) / bufW * 2 - 1, (t + m) / bufH * 2 - 1)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
         }
@@ -191,7 +203,7 @@ class GlassScene(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
 
     companion object {
         private const val TAG = "HearthGlass"
-        const val MAX = 6
+        const val MAX = 96
 
         private val VERT_BOX = """
 attribute vec2 aPos;
@@ -221,6 +233,8 @@ uniform float uPx;
 uniform float uDark;
 uniform vec4 uRect;
 uniform vec4 uP;
+uniform vec4 uFade;
+uniform vec4 uDim;
 
 float sdRR(vec2 p, vec2 c, vec2 h, float r) {
   vec2 q = abs(p - c) - h + r;
@@ -231,16 +245,30 @@ void main() {
   vec2 p = vUv * uRes;
   vec4 R = uRect;
   vec4 P = uP;
-  float d = sdRR(p, R.xy, R.zw, P.x);
 
-  // Outside the pane: just its soft shadow.
-  if (d > 0.5) {
-    if (P.w <= 0.0) discard;
-    float ds = sdRR(p, R.xy - vec2(0.0, 6.0 * uPx), R.zw - vec2(2.0 * uPx), P.x);
-    float sh = 1.0 - clamp((ds + 6.0 * uPx) / (30.0 * uPx), 0.0, 1.0);
-    float a = sh * sh * P.w * P.y;
-    if (a < 0.002) discard;
-    gl_FragColor = vec4(0.0, 0.0, 0.0, a);
+  // Scrolling lists fade out at their top and bottom edges, exactly like the content on them.
+  float fade = clamp((uFade.x - p.y) / max(uFade.x - uFade.y, 0.5), 0.0, 1.0)
+             * clamp((p.y - uFade.w) / max(uFade.z - uFade.w, 0.5), 0.0, 1.0);
+  float alpha = P.y * fade;
+  if (alpha < 0.002) discard;
+
+  // A plain tint (the dim behind the guide and app drawer).
+  if (uDim.a > 0.0) { gl_FragColor = vec4(uDim.rgb, 1.0) * uDim.a * alpha; return; }
+
+  float d = sdRR(p, R.xy, R.zw, P.x);
+  float cover = clamp(0.5 - d, 0.0, 1.0) * alpha;
+  if (P.z < -0.5) cover *= 0.55;                     // empty slots are fainter
+
+  // Soft shadow: offset down and pulled in, so it never hugs the edge as a dark line.
+  float shA = 0.0;
+  if (P.w > 0.0) {
+    float ds = sdRR(p, R.xy - vec2(0.0, 8.0 * uPx), R.zw - vec2(6.0 * uPx), P.x);
+    float sh = 1.0 - smoothstep(-14.0 * uPx, 30.0 * uPx, ds);
+    shA = sh * sh * P.w * alpha;
+  }
+  if (cover <= 0.0) {
+    if (shA < 0.002) discard;
+    gl_FragColor = vec4(0.0, 0.0, 0.0, shA);
     return;
   }
 
@@ -255,28 +283,30 @@ void main() {
   float v = ((R.y + R.w) - p.y) / (2.0 * R.w);
   float sheen = pow(clamp(1.0 - (u * 0.6 + v), 0.0, 1.0), 2.0);
   float k = clamp((u + v) * 0.5, 0.0, 1.0);
+  float lift = max(P.z, 0.0);                         // what's on now: a touch brighter
   vec3 b;   // border strength: top-left, middle, bottom-right
   if (uDark > 0.5) {
     g *= 0.80;
     float l2 = lum * 0.80 + 0.001;
     g *= (0.58 * (1.0 - exp(-l2 / 0.58))) / l2;   // very bright scenes roll off so white text reads
-    g += vec3(0.06) + sheen * 0.10;
-    b = vec3(0.55, 0.12, 0.30);
+    g += vec3(0.06 + 0.06 * lift) + sheen * 0.08;
+    b = vec3(0.42, 0.10, 0.22);
   } else {
     g = g * 0.84 + vec3(0.16);
     float l2 = lum * 0.84 + 0.16;
     g += vec3(0.8 * max(0.0, 0.62 - l2));         // dark scenes are lifted so dark text reads
-    g += sheen * 0.16;
-    b = vec3(0.85, 0.30, 0.55);
+    g = mix(g, vec3(1.0), 0.18 * lift);
+    g += sheen * 0.12;
+    b = vec3(0.80, 0.34, 0.55);
   }
-  // Hairline border, brightest at the top-left, catching the light again at the bottom-right.
+  // Hairline border: one crisp pixel, brightest at the top-left, catching the light again at the bottom-right.
   float e = max(-d, 0.0);
-  float rim = 1.0 - clamp((e - 0.3 * uPx) / (1.0 * uPx), 0.0, 1.0);
+  float rim = 1.0 - smoothstep(0.6 * uPx, 1.3 * uPx, e);
   float ba = k < 0.5 ? mix(b.x, b.y, k / 0.5) : mix(b.y, b.z, (k - 0.5) / 0.5);
   g = mix(g, vec3(1.0), rim * ba);
 
-  float cover = clamp(0.5 - d, 0.0, 1.0) * P.y;
-  gl_FragColor = vec4(clamp(g, 0.0, 1.0) * cover, cover);
+  // Glass over its own shadow (premultiplied).
+  gl_FragColor = vec4(clamp(g, 0.0, 1.0) * cover, cover + shA * (1.0 - cover));
 }
 """
     }

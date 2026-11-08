@@ -330,7 +330,31 @@ class GuideView(context: Context) : View(context) {
     private val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = sheenShader }
     private val hairline = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
 
-    private fun frostCell(canvas: Canvas, r: RectF, body: Float) {
+    /** True while the GPU draws the glass under the cells (then this view only records where they are). */
+    var gpuGlass = false
+    /** Cells drawn this frame (view px) and their tone (-1 empty slot, 0 normal, 1 on now), for the GPU glass. */
+    val glassCells = ArrayList<RectF>()
+    val glassTones = ArrayList<Float>()
+    private val cellPool = ArrayList<RectF>()
+    /** Called after each draw, so the glass can follow the cells exactly. */
+    var onGlass: (() -> Unit)? = null
+    private var lastLayerTop = 0f
+
+    /** The rows' fade band (view px): invisible above [0], full by [1]; full until [2], invisible at [3]. */
+    fun glassFade(out: FloatArray) {
+        val scroll = scrollS.x.toFloat()
+        out[0] = lastLayerTop; out[1] = if (scroll > 1f) lastLayerTop + fadeH else lastLayerTop
+        out[2] = if (scroll < maxScroll() - 1f) height - fadeH else height.toFloat(); out[3] = height.toFloat()
+    }
+
+    private fun frostCell(canvas: Canvas, r: RectF, body: Float, tone: Float = 0f) {
+        if (gpuGlass) {
+            val i = glassCells.size
+            if (cellPool.size <= i) cellPool += RectF()
+            glassCells += cellPool[i].apply { set(r) }
+            glassTones += tone
+            return
+        }
         fill.shader = null
         fill.color = Color.argb((body * 255).toInt(), 255, 255, 255)
         canvas.drawRoundRect(r, radius, radius, fill)
@@ -354,6 +378,12 @@ class GuideView(context: Context) : View(context) {
     }
 
     override fun onDraw(canvas: Canvas) {
+        glassCells.clear(); glassTones.clear()
+        drawGuide(canvas)
+        onGlass?.invoke()
+    }
+
+    private fun drawGuide(canvas: Canvas) {
         stepSprings()
         if (channels.isEmpty()) return
         val now = System.currentTimeMillis()
@@ -380,6 +410,7 @@ class GuideView(context: Context) : View(context) {
 
         // Rows go into their own layer so the top and bottom edges can fade softly.
         val layerTop = headerH - dp(2f)
+        lastLayerTop = layerTop
         val save = canvas.saveLayer(0f, layerTop, width.toFloat(), height.toFloat(), null)
         for (r in channels.indices) {
             val y = screenY(r)
@@ -413,7 +444,7 @@ class GuideView(context: Context) : View(context) {
             val list = programsFor(ch)
             if (list.isEmpty()) {
                 cell.set(tlLeft() + gap / 2, cellTop + gap / 2, tlRight() - gap / 2, cellTop + rowH - gap / 2)
-                frostCell(canvas, cell, if (dark) 0.04f else 0.30f)
+                frostCell(canvas, cell, if (dark) 0.04f else 0.30f, -1f)
             }
             for (p in list) {
                 if (p.end <= win || p.start >= winEnd) continue
@@ -424,7 +455,7 @@ class GuideView(context: Context) : View(context) {
                     p.gap -> if (dark) 0.035f else 0.26f
                     airing -> if (dark) 0.12f else 0.66f
                     else -> if (dark) 0.07f else 0.46f
-                })
+                }, if (p.gap) -1f else if (airing) 1f else 0f)
                 drawCell(canvas, p, cell, now, airing, ink, ::inkA)
             }
         }

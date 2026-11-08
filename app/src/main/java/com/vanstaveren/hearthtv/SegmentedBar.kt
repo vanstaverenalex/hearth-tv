@@ -93,8 +93,12 @@ class SegmentedBar(context: Context) : View(context) {
         return super.onKeyDown(keyCode, event)
     }
 
+    /** True while the GPU draws this bar's glass (then only the pill and labels are drawn here). */
+    var gpuGlass = false
+        set(v) { field = v; invalidate() }
+
     override fun onDraw(canvas: Canvas) {
-        glass.draw(canvas)
+        if (!gpuGlass) glass.draw(canvas)
         val h = height.toFloat()
         val rad = (h - inset * 2) / 2
         r.set(pillX, inset, pillX + pillW, h - inset)
