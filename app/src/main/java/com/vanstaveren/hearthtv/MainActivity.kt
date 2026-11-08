@@ -47,6 +47,7 @@ class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var video: LoopPlayer
     private lateinit var scrim: View
+    private lateinit var dayText: TextView
     private lateinit var dateText: TextView
     private lateinit var clockText: TextView
     private lateinit var weatherIcon: ImageView
@@ -58,18 +59,19 @@ class MainActivity : Activity() {
     private lateinit var modeBar: LinearLayout
     /** The dock's Live TV button: where focus rests whenever the home screen opens. */
     private var liveButton: View? = null
-    private lateinit var modeDivider: View
+    private var appsButton: View? = null
     private val modeButtons = ArrayList<Pair<String, View>>()
     private lateinit var dock: LinearLayout
     private lateinit var dockGlass: GlassDrawable
     private lateinit var dockDivider: View
     private lateinit var favRow: RecyclerView
     private lateinit var favAdapter: TileAdapter
-    private val dockButtons = ArrayList<Pair<FrameLayout, ImageView>>()
+    private val dockButtons = ArrayList<DockTile>()
 
-    private lateinit var clockBlock: LinearLayout
-    private lateinit var clockHalo: SoftHalo
-    private lateinit var brandHalo: SoftHalo
+    private lateinit var card: LinearLayout
+    private lateinit var cardGlass: GlassDrawable
+    private lateinit var cardRule: View
+    private lateinit var weatherRow: LinearLayout
     private lateinit var santa: SantaSleigh
     private var resumed = false
     private val santaRun = object : Runnable {
@@ -78,7 +80,6 @@ class MainActivity : Activity() {
             ui.postDelayed(this, 120_000L)
         }
     }
-    private lateinit var topRight: LinearLayout
     private lateinit var overlayDim: View
     private var overlay: String? = null            // "apps", "guide" or null
 
@@ -147,7 +148,7 @@ class MainActivity : Activity() {
             overlay = null
             for (p in listOf(library, guide)) { p.animate().cancel(); p.visibility = View.GONE; p.alpha = 1f; p.translationY = 0f }
             overlayDim.animate().cancel(); overlayDim.alpha = 0f; overlayDim.visibility = View.GONE
-            for (v in listOf(dock, clockBlock, topRight, clockHalo, brandHalo)) {
+            for (v in listOf(dock, card)) {
                 v.animate().cancel(); v.visibility = View.VISIBLE; v.alpha = 1f; v.translationY = 0f
             }
         }
@@ -197,173 +198,223 @@ class MainActivity : Activity() {
         santa = SantaSleigh(this)
         root.addView(santa, FrameLayout.LayoutParams(-1, dpi(46f), Gravity.TOP))
 
-        // Soft halo behind the clock so it reads on any background
-        clockHalo = SoftHalo(this)
-        root.addView(clockHalo, FrameLayout.LayoutParams(dpi(10f), dpi(10f)))
+        // ---- One grid for the whole home screen: the info card and the dock share the same
+        // 30dp margins, and the card is exactly as wide as the dock's Live TV + Apps pair, so its
+        // right edge lines up with the dock's divider.
+        val edge = dpi(EDGE)
 
-        // Clock + weather, top-left
-        clockBlock = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        clockBlock.addOnLayoutChangeListener { v, l, t, r, b, _, _, _, _ ->
-            val lp = clockHalo.layoutParams as FrameLayout.LayoutParams
-            val padX = dpi(110f); val padY = dpi(70f)
-            val nw = (r - l) + padX * 2; val nh = (b - t) + padY * 2
-            if (lp.width != nw || lp.height != nh || lp.leftMargin != l - padX || lp.topMargin != t - padY) {
-                lp.width = nw; lp.height = nh; lp.leftMargin = l - padX; lp.topMargin = t - padY
-                clockHalo.layoutParams = lp
-            }
+        // ---- Glass info card, top-left: brand + controls, clock + date, weather
+        card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false; clipToPadding = false
+            setPadding(dpi(15f), dpi(12f), dpi(13.5f), dpi(15f))
         }
-        dateText = TextView(this).apply { style(14f, Fonts.body(this@MainActivity, 700), Color.WHITE, 0.08f); isAllCaps = true }
-        clockText = TextView(this).apply {
-            style(116f, Fonts.display(this@MainActivity, 300), Color.WHITE, -0.035f)
-            setShadowLayer(dp(24f), 0f, dp(3f), Color.argb(64, 0, 0, 0))
-        }
-        val weatherRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        weatherIcon = ImageView(this)
-        weatherTemp = TextView(this).apply { style(15f, Fonts.body(this@MainActivity, 700), Color.WHITE) }
-        weatherDesc = TextView(this).apply { style(15f, Fonts.body(this@MainActivity, 500), Color.WHITE) }
-        weatherRange = TextView(this).apply { style(15f, Fonts.body(this@MainActivity, 500), Color.argb(160, 255, 255, 255)) }
-        weatherRow.addView(weatherIcon, LinearLayout.LayoutParams(dpi(20f), dpi(20f)).apply { rightMargin = dpi(8f) })
-        weatherRow.addView(weatherTemp, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dpi(8f) })
-        weatherRow.addView(weatherDesc, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dpi(10f) })
-        weatherRow.addView(weatherRange)
-        weatherRow.visibility = View.INVISIBLE
-        weatherRow.tag = "weatherRow"
-        clockBlock.addView(dateText)
-        clockBlock.addView(clockText, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(6f); leftMargin = -dpi(4f) })
-        clockBlock.addView(weatherRow, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(10f) })
-        root.addView(clockBlock, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply {
-            leftMargin = dpi(60f); topMargin = dpi(40f)
-        })
+        cardGlass = GlassDrawable(this, PANEL_R, true)
+        card.background = LayerDrawable(arrayOf(panelTint(true), cardGlass))
 
-        // Brand + mode switch, top-right (with its own soft halo)
-        brandHalo = SoftHalo(this).apply { strength = 0.85f }
-        root.addView(brandHalo, FrameLayout.LayoutParams(dpi(10f), dpi(10f)))
-        topRight = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        topRight.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
-            val lp = brandHalo.layoutParams as FrameLayout.LayoutParams
-            val padX = dpi(70f); val padY = dpi(40f)
-            val nw = (r - l) + padX * 2; val nh = (b - t) + padY * 2
-            if (lp.width != nw || lp.height != nh || lp.leftMargin != l - padX || lp.topMargin != t - padY) {
-                lp.width = nw; lp.height = nh; lp.leftMargin = l - padX; lp.topMargin = t - padY
-                brandHalo.layoutParams = lp
-            }
+        // Header: mark · Hearth / Van Staveren Household · [☀ ☾ A] · ⏭ · ⚙
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            clipChildren = false; clipToPadding = false
         }
         val mark = FrameLayout(this).apply {
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Hearth.PURPLE, Hearth.PINK)).apply {
-                cornerRadius = dp(10f); setStroke(dpi(0.6f), Color.argb(86, 255, 255, 255))
+                cornerRadius = dp(6.5f); setStroke(dpi(0.6f), Color.argb(86, 255, 255, 255))
             }
         }
         mark.addView(ImageView(this).apply { setImageResource(R.drawable.ic_network) },
-            FrameLayout.LayoutParams(dpi(16f), dpi(16f), Gravity.CENTER))
-        topRight.addView(mark, LinearLayout.LayoutParams(dpi(30f), dpi(30f)).apply { rightMargin = dpi(8f) })
+            FrameLayout.LayoutParams(dpi(13f), dpi(13f), Gravity.CENTER))
+        header.addView(mark, LinearLayout.LayoutParams(dpi(22.5f), dpi(22.5f)).apply { marginEnd = dpi(6f) })
         val brandTexts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        brandName = TextView(this).apply { text = "Hearth"; style(16f, Fonts.display(this@MainActivity, 600), Color.WHITE) }
+        brandName = TextView(this).apply { text = "Hearth"; style(11.5f, Fonts.display(this@MainActivity, 600), Color.WHITE) }
         brandSub = TextView(this).apply {
-            text = "VAN STAVEREN HOUSEHOLD"; style(7.5f, Fonts.body(this@MainActivity, 700), Color.argb(190, 230, 233, 240), 0.08f)
-            setPadding(0, dpi(2f), 0, 0)
+            text = "Van Staveren Household"; style(7.5f, Fonts.body(this@MainActivity, 600), Color.WHITE)
+            maxLines = 1; setPadding(0, dpi(1.5f), 0, 0)
         }
         brandTexts.addView(brandName); brandTexts.addView(brandSub)
-        topRight.addView(brandTexts, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dpi(16f) })
+        header.addView(brandTexts, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dpi(6f) })
 
         modeBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dpi(4f), dpi(4f), dpi(4f), dpi(4f))
+            setPadding(dpi(1.5f), dpi(1.5f), dpi(1.5f), dpi(1.5f))
         }
         for ((key, icon) in listOf("light" to R.drawable.ic_sun, "dark" to R.drawable.ic_moon, "auto" to 0)) {
             val b: View = if (icon != 0) FrameLayout(this).apply {
-                addView(ImageView(this@MainActivity).apply { setImageResource(icon) }, FrameLayout.LayoutParams(dpi(14f), dpi(14f), Gravity.CENTER))
+                addView(ImageView(this@MainActivity).apply { setImageResource(icon) }, FrameLayout.LayoutParams(dpi(10.5f), dpi(10.5f), Gravity.CENTER))
             } else TextView(this).apply {
-                text = "Auto"; gravity = Gravity.CENTER; style(11f, Fonts.body(this@MainActivity, 700), Color.WHITE)
-                setPadding(dpi(10f), 0, dpi(10f), 0)
+                text = "A"; gravity = Gravity.CENTER; style(8.5f, Fonts.body(this@MainActivity, 800), Color.WHITE)
             }
-            b.isFocusable = true
-            b.setOnClickListener { prefs.mode = key; applyTheme(force = true) }
-            b.setOnKeyListener { _, code, e ->
-                if (code == KeyEvent.KEYCODE_MENU && e.action == KeyEvent.ACTION_UP) { showSetupStatus(); true } else false
-            }
-            b.setOnFocusChangeListener { _, _ -> styleModeBar() }
+            b.contentDescription = when (key) { "light" -> "Light mode"; "dark" -> "Dark mode"; else -> "Automatic" }
+            controlKeys(b) { prefs.mode = key; applyTheme(force = true) }
             modeButtons += key to b
-            modeBar.addView(b, LinearLayout.LayoutParams(if (icon != 0) dpi(30f) else -2, dpi(30f)).apply { marginEnd = dpi(2f) })
+            modeBar.addView(b, LinearLayout.LayoutParams(dpi(21f), dpi(21f)))
         }
-        // Divider, then ⏭ next background, in the same glass pill
-        modeDivider = View(this)
-        modeBar.addView(modeDivider, LinearLayout.LayoutParams(dpi(1f), dpi(16f)).apply { marginStart = dpi(3f); marginEnd = dpi(5f) })
-        val skip = FrameLayout(this).apply {
-            addView(ImageView(this@MainActivity).apply { setImageResource(R.drawable.ic_next) }, FrameLayout.LayoutParams(dpi(14f), dpi(14f), Gravity.CENTER))
-            isFocusable = true; contentDescription = "Next background"
-            setOnClickListener { skipScene() }
-            setOnKeyListener { _, code, e ->
-                if (code == KeyEvent.KEYCODE_MENU && e.action == KeyEvent.ACTION_UP) { showSetupStatus(); true } else false
-            }
-            setOnFocusChangeListener { _, _ -> styleModeBar() }
+        header.addView(modeBar, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dpi(6f) })
+
+        val skip = circleButton(R.drawable.ic_next, 10.5f, "Next background") { skipScene() }
+        header.addView(skip, LinearLayout.LayoutParams(dpi(24f), dpi(24f)).apply { marginEnd = dpi(6f) })
+        val gear = circleButton(R.drawable.ic_settings, 11.5f, "Settings") {
+            open(AppEntry(Specials.SETTINGS, null, "Settings", false))
         }
+        header.addView(gear, LinearLayout.LayoutParams(dpi(24f), dpi(24f)))
         modeButtons += "skip" to skip
-        modeBar.addView(skip, LinearLayout.LayoutParams(dpi(30f), dpi(30f)))
-        topRight.addView(modeBar)
-        root.addView(topRight, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
-            rightMargin = dpi(60f); topMargin = dpi(46f)
+        modeButtons += "settings" to gear
+        card.addView(header, LinearLayout.LayoutParams(-1, -2))
+
+        cardRule = View(this)
+        card.addView(cardRule, LinearLayout.LayoutParams(-1, dpi(1f)).apply { topMargin = dpi(10.5f) })
+
+        // Clock row: big time, day + date on the right sitting on the same baseline
+        val clockRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = true }
+        clockText = TextView(this).apply { style(52f, Fonts.display(this@MainActivity, 300), Color.WHITE, -0.04f) }
+        clockRow.addView(clockText, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = -dpi(2f) })
+        val dayCol = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.END
+            baselineAlignedChildIndex = 1
+        }
+        dayText = TextView(this).apply { style(10.5f, Fonts.body(this@MainActivity, 700), Color.WHITE); gravity = Gravity.END }
+        dateText = TextView(this).apply { style(10.5f, Fonts.body(this@MainActivity, 600), Color.WHITE); gravity = Gravity.END }
+        dayCol.addView(dayText, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.END })
+        dayCol.addView(dateText, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.END; topMargin = dpi(2.5f) })
+        clockRow.addView(dayCol, LinearLayout.LayoutParams(-2, -2))
+        card.addView(clockRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(9f) })
+
+        // Weather row
+        weatherRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        weatherIcon = ImageView(this)
+        weatherTemp = TextView(this).apply { style(19.5f, Fonts.body(this@MainActivity, 700), Color.WHITE) }
+        val wCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        weatherDesc = TextView(this).apply { style(9.75f, Fonts.body(this@MainActivity, 600), Color.WHITE); maxLines = 1 }
+        weatherRange = TextView(this).apply { style(9.75f, Fonts.body(this@MainActivity, 600), Color.WHITE); maxLines = 1 }
+        wCol.addView(weatherDesc)
+        wCol.addView(weatherRange, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(2f) })
+        weatherRow.addView(weatherIcon, LinearLayout.LayoutParams(dpi(22.5f), dpi(22.5f)).apply { marginEnd = dpi(7.5f) })
+        weatherRow.addView(weatherTemp, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dpi(7.5f) })
+        weatherRow.addView(wCol, LinearLayout.LayoutParams(0, -2, 1f))
+        weatherRow.alpha = 0f
+        card.addView(weatherRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(10.5f) })
+
+        root.addView(card, FrameLayout.LayoutParams(cardWidthPx(), -2, Gravity.TOP or Gravity.START).apply {
+            leftMargin = edge; topMargin = dpi(24f)
         })
 
-        // Dock
+        // ---- Dock: full width on the same margins. Live TV · Apps | favourites
+        // Vertical padding is half a gap because every tile carries half a gap of margin.
         dock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             clipChildren = false; clipToPadding = false
-            setPadding(dpi(11f - 7.5f), dpi(11f - 7.5f), dpi(11f - 7.5f), dpi(11f - 7.5f))
+            setPadding(dpi(GAP), dpi(GAP / 2), dpi(GAP / 2), dpi(GAP / 2))
         }
-        dockGlass = GlassDrawable(this, 28f, true)
-        dock.background = dockGlass
-        favAdapter = TileAdapter(repo, 128f, 72f, 15f, 17f, ::open, ::showAppMenu)
+        dockGlass = GlassDrawable(this, PANEL_R, true)
+        dock.background = LayerDrawable(arrayOf(panelTint(true), dockGlass))
+        liveButton = dockButton(R.drawable.ic_livetv, 22.5f, "Live TV") { openGuide() }
+        appsButton = dockButton(R.drawable.ic_apps, 21f, "Apps") { openLibrary() }
+        dock.addView(liveButton, LinearLayout.LayoutParams(dpi(TILE_W), dpi(TILE_H)).apply {
+            topMargin = dpi(GAP / 2); bottomMargin = dpi(GAP / 2)
+        })
+        dock.addView(appsButton, LinearLayout.LayoutParams(dpi(TILE_W), dpi(TILE_H)).apply {
+            leftMargin = dpi(GAP); topMargin = dpi(GAP / 2); bottomMargin = dpi(GAP / 2)
+        })
+        dockDivider = View(this)
+        dock.addView(dockDivider, LinearLayout.LayoutParams(dpi(1f), dpi(42f)).apply {
+            leftMargin = dpi(GAP); rightMargin = dpi(GAP / 2)
+        })
+        favAdapter = TileAdapter(repo, TILE_W, TILE_H, GAP, TILE_R, ::open, ::showAppMenu)
         favRow = RecyclerView(this).apply {
             layoutManager = LinearLayoutManager(this@MainActivity, LinearLayoutManager.HORIZONTAL, false)
             adapter = favAdapter; itemAnimator = null
             clipChildren = false; clipToPadding = false; overScrollMode = View.OVER_SCROLL_NEVER
         }
-        dock.addView(favRow, LinearLayout.LayoutParams(-2, -2))
-        dockDivider = View(this)
-        dock.addView(dockDivider, LinearLayout.LayoutParams(dpi(1f), dpi(48f)).apply { leftMargin = dpi(7.5f); rightMargin = dpi(7.5f) })
-        liveButton = dockButton(R.drawable.ic_livetv, "Live TV") { openGuide() }
-        dock.addView(liveButton)
-        dock.addView(dockButton(R.drawable.ic_apps, "Apps") { openLibrary() })
-        root.addView(dock, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-            bottomMargin = dpi(38f)
+        dock.addView(favRow, LinearLayout.LayoutParams(0, -2, 1f))
+        root.addView(dock, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
+            leftMargin = edge; rightMargin = edge; bottomMargin = dpi(24f)
         })
 
         buildOverlays()
     }
 
-    private fun dockButton(icon: Int, label: String, action: () -> Unit): View {
-        val size = 72f
+    /** Card width = dock padding + Live TV + gap + Apps + half a gap, so the card ends on the dock divider. */
+    private fun cardWidthPx() = dpi(GAP) + 2 * dpi(TILE_W) + dpi(GAP) + dpi(GAP / 2)
+
+    /** Favourite tiles share whatever is left of the dock evenly (never wider than Live TV / Apps). */
+    private fun favTileWidthDp(count: Int): Float {
+        if (count <= 0) return TILE_W
+        val screenDp = resources.displayMetrics.widthPixels / resources.displayMetrics.density
+        val inner = screenDp - 2 * EDGE - GAP - GAP / 2          // dock width minus its padding
+        val left = inner - (TILE_W + GAP + TILE_W + GAP + 1f + GAP / 2)
+        return minOf(TILE_W, left / count - GAP)
+    }
+
+    /** A darker (or lighter) wash under the glass, so text on it stays readable over any video. */
+    private fun panelTint(dark: Boolean) = GradientDrawable().apply {
+        cornerRadius = dp(PANEL_R)
+        setColor(if (dark) Color.argb(72, 6, 8, 22) else Color.argb(92, 255, 255, 255))
+    }
+
+    /** D-pad wiring shared by every control in the card: OK acts, MENU opens setup status. */
+    private fun controlKeys(v: View, action: () -> Unit) {
+        v.isFocusable = true
+        v.setOnClickListener { action() }
+        v.setOnKeyListener { _, code, e ->
+            if (code == KeyEvent.KEYCODE_MENU && e.action == KeyEvent.ACTION_UP) { showSetupStatus(); true } else false
+        }
+        v.setOnFocusChangeListener { b, f ->
+            b.animate().cancel()
+            b.animate().scaleX(if (f) 1.12f else 1f).scaleY(if (f) 1.12f else 1f)
+                .setDuration(if (f) 220 else 180).setInterpolator(Ease.out).start()
+            styleModeBar()
+        }
+    }
+
+    private fun circleButton(icon: Int, iconDp: Float, label: String, action: () -> Unit) = FrameLayout(this).apply {
+        addView(ImageView(this@MainActivity).apply { setImageResource(icon) }, FrameLayout.LayoutParams(dpi(iconDp), dpi(iconDp), Gravity.CENTER))
+        contentDescription = label
+        controlKeys(this, action)
+    }
+
+    private class DockTile(val face: FrameLayout, val icon: ImageView, val label: TextView)
+
+    private fun dockButton(icon: Int, iconDp: Float, label: String, action: () -> Unit): View {
         val pad = 44f
         val holder = FrameLayout(this).apply {
-            clipChildren = false; isFocusable = true; contentDescription = label
+            clipChildren = false; clipToPadding = false; isFocusable = true; contentDescription = label
         }
-        val glow = GlowView(this, 17f, pad)
-        holder.addView(glow, FrameLayout.LayoutParams(dpi(size + 2 * pad), dpi(size + 2 * pad)).apply {
+        val glow = GlowView(this, TILE_R, pad)
+        holder.addView(glow, FrameLayout.LayoutParams(dpi(TILE_W + 2 * pad), dpi(TILE_H + 2 * pad)).apply {
             setMargins(-dpi(pad), -dpi(pad), -dpi(pad), -dpi(pad))
         })
         val face = FrameLayout(this)
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
         val img = ImageView(this).apply { setImageResource(icon) }
-        face.addView(img, FrameLayout.LayoutParams(dpi(27f), dpi(27f), Gravity.CENTER))
-        holder.addView(face, FrameLayout.LayoutParams(dpi(size), dpi(size)))
+        val text = TextView(this).apply { this.text = label; style(9.75f, Fonts.body(this@MainActivity, 800), Color.WHITE) }
+        col.addView(img, LinearLayout.LayoutParams(dpi(iconDp), dpi(iconDp)))
+        col.addView(text, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dpi(5f) })
+        face.addView(col, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
+        holder.addView(face, FrameLayout.LayoutParams(dpi(TILE_W), dpi(TILE_H)))
+        val tile = DockTile(face, img, text)
         holder.setOnClickListener { action() }
         holder.setOnFocusChangeListener { v, f ->
             animateScale(v, if (f) 1.06f else 1f)
             v.translationZ = if (f) 1f else 0f
             glow.show(f)
-            styleDockButton(face, f)
+            styleDockButton(tile, f)
         }
-        dockButtons += face to img
-        return holder.also {
-            it.layoutParams = LinearLayout.LayoutParams(dpi(size), dpi(size)).apply { leftMargin = dpi(7.5f); rightMargin = dpi(7.5f) }
-        }
+        dockButtons += tile
+        styleDockButton(tile, false)
+        return holder
     }
 
-    private fun styleDockButton(face: FrameLayout, focused: Boolean) {
-        face.background = LayerDrawable(arrayOf(
-            if (focused) hearthGradient(this, 17f, 0.35f) else GradientDrawable().apply {
-                cornerRadius = dp(17f); setColor(if (dark) Color.argb(22, 255, 255, 255) else Color.argb(115, 255, 255, 255))
+    private fun styleDockButton(t: DockTile, focused: Boolean) {
+        val ink = if (dark || focused) Color.WHITE else Hearth.INK_DARK
+        t.icon.setColorFilter(ink); t.label.setTextColor(ink)
+        t.face.background = if (focused) LayerDrawable(arrayOf(
+            GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Hearth.PURPLE, Hearth.PINK)).apply { cornerRadius = dp(TILE_R) },
+            rimDrawable(this, TILE_R, true, dark),
+        )) else LayerDrawable(arrayOf(
+            GradientDrawable().apply {
+                cornerRadius = dp(TILE_R); setColor(if (dark) Color.argb(26, 255, 255, 255) else Color.argb(120, 255, 255, 255))
             },
-            GlassDrawable(this, 17f, dark),
+            GlassDrawable(this, TILE_R, dark),
         ))
     }
 
@@ -485,21 +536,20 @@ class MainActivity : Activity() {
             if (dark) intArrayOf(0x8C03050E.toInt(), 0x1F03050E, 0x0003050E, 0x5903050E, 0xB303050E.toInt())
             else intArrayOf(0x73FFFFFF, 0x1AFFFFFF, 0x00FFFFFF, 0x1F08283C, 0x4D08283C)
         )
-        for (t in listOf(dateText, clockText, weatherTemp, weatherDesc, brandName)) t.setTextColor(ink)
-        weatherRange.setTextColor(sub)
-        brandSub.setTextColor(sub)
-        clockHalo.dark = dark; brandHalo.dark = dark
-        brandName.setShadowLayer(dp(8f), 0f, dp(1f), if (dark) Color.argb(110, 0, 0, 0) else Color.argb(170, 255, 255, 255))
-        brandSub.setShadowLayer(dp(6f), 0f, dp(1f), if (dark) Color.argb(110, 0, 0, 0) else Color.argb(170, 255, 255, 255))
-        // A gentle shadow on the text itself, on top of the halo.
-        val shade = if (dark) Color.argb(110, 0, 0, 0) else Color.argb(170, 255, 255, 255)
-        clockText.setShadowLayer(dp(18f), 0f, dp(2f), shade)
-        for (t in listOf(dateText, weatherTemp, weatherDesc, weatherRange)) t.setShadowLayer(dp(8f), 0f, dp(1f), shade)
+        fun inkA(a: Int) = Color.argb(a, Color.red(ink), Color.green(ink), Color.blue(ink))
+        for (t in listOf(dayText, clockText, weatherTemp, weatherDesc, brandName)) t.setTextColor(ink)
+        brandSub.setTextColor(inkA(184))
+        dateText.setTextColor(inkA(190))
+        weatherRange.setTextColor(inkA(178))
         weatherIcon.setColorFilter(ink)
+        cardGlass.dark = dark; cardGlass.rebuild()
+        card.background = LayerDrawable(arrayOf(panelTint(dark), cardGlass))
+        cardRule.setBackgroundColor(inkA(if (dark) 41 else 31))
 
         dockGlass.dark = dark; dockGlass.rebuild()
-        dockDivider.setBackgroundColor(if (dark) Color.argb(56, 255, 255, 255) else Color.argb(40, 11, 23, 38))
-        for ((face, img) in dockButtons) { img.setColorFilter(ink); styleDockButton(face, (face.parent as View).isFocused) }
+        dock.background = LayerDrawable(arrayOf(panelTint(dark), dockGlass))
+        dockDivider.setBackgroundColor(inkA(if (dark) 51 else 41))
+        for (t in dockButtons) styleDockButton(t, (t.face.parent as View).isFocused)
         favAdapter.dark = dark
         libAdapter.dark = dark
         overlayDim.setBackgroundColor(if (dark) Color.argb(168, 4, 6, 18) else Color.argb(150, 236, 242, 248))
@@ -511,7 +561,6 @@ class MainActivity : Activity() {
         libHint.background = GlassDrawable(this, 14f, dark)
         libBar.dark = dark; guideBar.dark = dark; guideView.dark = dark
         libGrid.dark = dark
-        modeBar.background = GlassDrawable(this, 19f, dark)
         styleModeBar()
 
         if ((changed || force) && shotDark == null) {
@@ -523,20 +572,33 @@ class MainActivity : Activity() {
         refreshScene()
     }
 
+    /** Segmented light/dark/auto control plus the round ⏭ and ⚙ buttons in the card header. */
     private fun styleModeBar() {
         val ink = if (dark) Color.WHITE else Hearth.INK_DARK
-        modeDivider.setBackgroundColor(Color.argb(60, Color.red(ink), Color.green(ink), Color.blue(ink)))
+        fun inkA(a: Int) = Color.argb(a, Color.red(ink), Color.green(ink), Color.blue(ink))
+        modeBar.background = GradientDrawable().apply {
+            cornerRadius = dp(12f); setColor(if (dark) Color.argb(51, 0, 0, 0) else Color.argb(18, 11, 23, 38))
+        }
         for ((key, v) in modeButtons) {
-            val selected = prefs.mode == key
+            val round = key == "skip" || key == "settings"
+            val r = if (round) 12f else 10.5f
+            val selected = !round && prefs.mode == key
             v.background = when {
-                v.isFocused -> LayerDrawable(arrayOf(hearthGradient(this, 15f, 0.5f), rimDrawable(this, 15f, true, dark)))
+                v.isFocused -> LayerDrawable(arrayOf(
+                    GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Hearth.PURPLE, Hearth.PINK)).apply { cornerRadius = dp(r) },
+                    rimDrawable(this, r, true, dark)))
                 selected -> GradientDrawable().apply {
-                    cornerRadius = dp(15f)
-                    setColor(if (dark) Color.argb(62, 255, 255, 255) else Color.WHITE)
+                    cornerRadius = dp(r); setColor(if (dark) Color.argb(235, 255, 255, 255) else Hearth.INK_DARK)
                 }
+                round -> GradientDrawable().apply { cornerRadius = dp(r); setColor(inkA(if (dark) 26 else 18)) }
                 else -> null
             }
-            val c = if (v.isFocused) Color.WHITE else if (selected) ink else Color.argb(150, Color.red(ink), Color.green(ink), Color.blue(ink))
+            val c = when {
+                v.isFocused -> Color.WHITE
+                selected -> if (dark) Hearth.INK_DARK else Color.WHITE
+                round -> ink
+                else -> inkA(170)
+            }
             if (v is TextView) v.setTextColor(c)
             else ((v as FrameLayout).getChildAt(0) as ImageView).setColorFilter(c)
         }
@@ -575,7 +637,8 @@ class MainActivity : Activity() {
     private fun tick() {
         val now = Date()
         clockText.text = SimpleDateFormat("h:mm", Locale.US).format(now)
-        dateText.text = SimpleDateFormat("EEEE, MMMM d", Locale.US).format(now)
+        dayText.text = SimpleDateFormat("EEEE", Locale.US).format(now)
+        dateText.text = SimpleDateFormat("MMMM d", Locale.US).format(now)
         applyTheme()
         refreshScene()
         if (overlay == "guide") {
@@ -596,8 +659,8 @@ class MainActivity : Activity() {
                     weatherIcon.setImageResource(icon)
                     weatherTemp.text = "${w.temp}°"
                     weatherDesc.text = words
-                    weatherRange.text = "H ${w.high}°  L ${w.low}°"
-                    root.findViewWithTag<View>("weatherRow")?.visibility = View.VISIBLE
+                    weatherRange.text = "H ${w.high}° · L ${w.low}°"
+                    if (weatherRow.alpha < 1f) weatherRow.animate().alpha(1f).setDuration(420).setInterpolator(Ease.out).start()
                     applyTheme()
                 }
                 ui.postDelayed(::refreshWeather, 30 * 60_000L)
@@ -625,7 +688,9 @@ class MainActivity : Activity() {
 
     private fun renderDock() {
         val byPkg = allApps.associateBy { it.pkg }
-        favAdapter.items = prefs.favorites.mapNotNull { byPkg[it] }.take(6)
+        val favs = prefs.favorites.mapNotNull { byPkg[it] }.take(5)
+        favAdapter.tileWdp = favTileWidthDp(favs.size)
+        favAdapter.items = favs
         dockDivider.visibility = if (favAdapter.itemCount > 0) View.VISIBLE else View.GONE
     }
 
@@ -659,7 +724,7 @@ class MainActivity : Activity() {
         overlayDim.visibility = View.VISIBLE
         overlayDim.animate().alpha(1f).setDuration(280).setStartDelay(0).setInterpolator(Ease.out).withLayer().start()
         // The home screen steps back: light/dark switch, clock and dock all hide.
-        for ((v, dy) in listOf(dock to dp(26f), clockBlock to -dp(12f), topRight to -dp(12f), clockHalo to -dp(12f), brandHalo to -dp(12f))) {
+        for ((v, dy) in listOf(dock to dp(26f), card to -dp(14f))) {
             v.animate().cancel()
             v.animate().alpha(0f).translationY(dy).setDuration(200).setStartDelay(0).setInterpolator(Ease.out).withLayer()
                 .withEndAction { if (overlay != null) v.visibility = View.INVISIBLE }.start()
@@ -679,11 +744,11 @@ class MainActivity : Activity() {
         overlayDim.animate().cancel()
         overlayDim.animate().alpha(0f).setDuration(260).setInterpolator(Ease.inOut).withLayer()
             .withEndAction { if (overlay == null) overlayDim.visibility = View.GONE }.start()
-        for (v in listOf(dock, clockBlock, topRight, clockHalo, brandHalo)) {
+        for (v in listOf(dock, card)) {
             v.animate().cancel(); v.visibility = View.VISIBLE
             v.animate().alpha(1f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).withLayer().start()
         }
-        val btn = if (which == "apps") dock.getChildAt(dock.childCount - 1) else dock.getChildAt(dock.childCount - 2)
+        val btn = if (which == "apps") appsButton else liveButton
         dock.post { btn?.requestFocus() }
     }
 
@@ -870,6 +935,13 @@ class MainActivity : Activity() {
     private fun ViewGroup.firstFocusable(): View? = (0 until childCount).map { getChildAt(it) }.firstOrNull { it.isFocusable }
 
     companion object {
+        /** Home grid, in dp: outer margin, gap, tile size and the shared panel/tile radii. */
+        private const val EDGE = 30f
+        private const val GAP = 10.5f
+        private const val TILE_W = 136f
+        private const val TILE_H = 75f
+        private const val TILE_R = 13.5f
+        private const val PANEL_R = 22.5f
         /** "home" (Home button) or "guide" (remote's Live/Guide button), sent by [HomeWatcher]. */
         const val EXTRA_OPEN = "hearth_open"
         /** Amazon apps whose screens live inside the launcher package (Appstore, Settings, inputs). */

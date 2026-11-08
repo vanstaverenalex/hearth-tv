@@ -15,13 +15,17 @@ import androidx.recyclerview.widget.RecyclerView
  */
 class TileAdapter(
     private val repo: AppRepository,
-    private val tileWdp: Float,
+    tileWdp: Float,
     private val tileHdp: Float,
     private val gapDp: Float,
     private val radiusDp: Float,
     private val onOpen: (AppEntry) -> Unit,
     private val onMenu: (AppEntry) -> Unit,
 ) : RecyclerView.Adapter<TileAdapter.Holder>() {
+
+    /** Tile width; the dock changes it so its favourites always fill the row exactly. */
+    var tileWdp: Float = tileWdp
+        set(v) { if (field != v) { field = v; notifyDataSetChanged() } }
 
     var dark = true
         set(v) { field = v; notifyDataSetChanged() }
@@ -98,6 +102,13 @@ class TileAdapter(
     override fun onBindViewHolder(h: Holder, position: Int) {
         val app = items[position]
         val ctx = h.root.context
+        val w = ctx.dpi(tileWdp)
+        if (h.card.layoutParams.width != w) {
+            val padPx = ctx.dpi(44f)
+            h.root.layoutParams = h.root.layoutParams.apply { width = w }
+            h.card.layoutParams = h.card.layoutParams.apply { width = w }
+            h.glow.layoutParams = h.glow.layoutParams.apply { width = w + 2 * padPx }
+        }
         h.root.contentDescription = app.label
         val banner = if (app.isSpecial) null else repo.banners[app.pkg]
         val tint = repo.tints[app.pkg]
