@@ -157,6 +157,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        HomeWatcher.noteHearthShown()
         tick()
         reloadApps()
         if (System.currentTimeMillis() - lastWeatherAt > 20 * 60_000) refreshWeather()
@@ -735,7 +736,8 @@ class MainActivity : Activity() {
         val link = ch.hulu
         val intent = if (link != null) Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(hulu)
         else packageManager.getLeanbackLaunchIntentForPackage(hulu) ?: packageManager.getLaunchIntentForPackage(hulu)
-        android.util.Log.i("HearthGuide", "watch ${ch.id} -> ${link ?: "(Hulu home)"}")
+        HomeWatcher.noteLaunch(this, hulu, amazonUi = false)
+        Diag.log(this, "watch ${ch.id} -> ${link ?: "(Hulu home)"}")
         if (intent == null) { toast("Hulu isn't installed on this TV"); return }
         try {
             // Tested on the TV: while Hulu is open (profile picked) this link tunes straight to the channel.
@@ -779,6 +781,7 @@ class MainActivity : Activity() {
     private fun focusLive() { dock.post { liveButton?.requestFocus() } }
 
     private fun open(app: AppEntry) {
+        HomeWatcher.noteLaunch(this, app.pkg, amazonUi = app.pkg == Specials.SETTINGS || app.pkg in AMAZON_SCREENS)
         when (app.pkg) {
             Specials.SETTINGS -> safeStart(Intent(Settings.ACTION_SETTINGS))
             Specials.FIRE_HOME -> {
@@ -792,7 +795,10 @@ class MainActivity : Activity() {
     }
 
     private fun safeStart(i: Intent) {
-        try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) { toast("Couldn't open that") }
+        Diag.log(this, "start ${i.component?.flattenToShortString() ?: i.action} pkg=${i.`package`}")
+        try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) {
+            Diag.log(this, "start failed: $e"); toast("Couldn't open that")
+        }
     }
 
     private fun showAppMenu(app: AppEntry) {
@@ -866,6 +872,8 @@ class MainActivity : Activity() {
     companion object {
         /** "home" (Home button) or "guide" (remote's Live/Guide button), sent by [HomeWatcher]. */
         const val EXTRA_OPEN = "hearth_open"
+        /** Amazon apps whose screens live inside the launcher package (Appstore, Settings, inputs). */
+        val AMAZON_SCREENS = setOf("com.amazon.venezia", "com.amazon.tv.settings.v2", "com.amazon.tv.settings", "com.amazon.tv.launcher", "com.amazon.firebat", "com.amazon.tv.livetv", "com.amazon.tv.inputpreference.service")
         const val EXTRA_SHOT = "hearth_shot"
     }
 }
