@@ -663,25 +663,35 @@ class MainActivity : Activity() {
     }
 
     private var sceneSince = 0L
+    private var glassTriedAt = 0L
     private var skipping = false
 
     /** Start the live background (the saved clip), then move on by itself every 40 minutes. */
     private fun refreshScene() {
         val now = System.currentTimeMillis()
-        if (video.current != null && now - sceneSince < 40 * 60_000L) return
+        if (video.current != null && now - sceneSince < 40 * 60_000L) {
+            // Same scene; if its blurred twin wasn't ready before (still being made), try again.
+            val cur = video.current
+            if (cur != null && !video.hasGlass && now - glassTriedAt > 5 * 60_000L) {
+                glassTriedAt = now
+                bgWorker.execute { Backgrounds.glassFor(this, cur)?.let { g -> ui.post { if (video.current == cur) video.play(cur, g) } } }
+            }
+            return
+        }
         val advance = video.current != null
         sceneSince = now
         bgWorker.execute {
             val f = if (advance) Backgrounds.next(this) else Backgrounds.current(this)
-            if (f != null) ui.post { showScene(f) }
+            val g = f?.let { Backgrounds.glassFor(this, it) }
+            if (f != null) ui.post { showScene(f, g) }
             Backgrounds.prefetch(this)
         }
     }
 
     /** Play a clip and update the "filmed in" tag to match. */
-    private fun showScene(f: java.io.File) {
+    private fun showScene(f: java.io.File, glass: java.io.File?) {
         val same = f == video.current
-        video.play(f)
+        video.play(f, glass)
         if (same && placeTag.alpha > 0f) return
         bgWorker.execute {
             val place = try { Backgrounds.placeOf(this, f) } catch (_: Exception) { null }
@@ -707,7 +717,8 @@ class MainActivity : Activity() {
         sceneSince = System.currentTimeMillis()
         bgWorker.execute {
             val f = Backgrounds.next(this)
-            ui.post { skipping = false; if (f != null) showScene(f) }
+            val g = f?.let { Backgrounds.glassFor(this, it) }
+            ui.post { skipping = false; if (f != null) showScene(f, g) }
             Backgrounds.prefetch(this)
         }
     }

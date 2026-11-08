@@ -100,13 +100,39 @@ object Backgrounds {
         val pl = playlist(ctx)
         if (pl.isEmpty()) return
         val i = pl.indexOfFirst { it.id == currentId(ctx) }
-        for (k in 1..2) download(ctx, pl[(i + k).mod(pl.size)])
+        for (k in 1..2) download(ctx, pl[(i + k).mod(pl.size)])?.let { glassFor(ctx, it) }
     }
 
     private fun dir(ctx: android.content.Context) = File(ctx.filesDir, "bg").apply { mkdirs() }
     private fun fileFor(ctx: android.content.Context, c: Clip) = File(dir(ctx), "${c.id}.v${c.version}.mp4")
     private fun anyLocal(ctx: android.content.Context) =
-        dir(ctx).listFiles()?.filter { it.name.endsWith(".mp4") }?.maxByOrNull { it.lastModified() }
+        dir(ctx).listFiles()?.filter { isClip(it) }?.maxByOrNull { it.lastModified() }
+
+    /** The 4K clips themselves (not their small blurred "glass" twins). */
+    private fun isClip(f: File) = f.name.endsWith(".mp4") && !f.name.endsWith(".glass.mp4")
+
+    /**
+     * The clip's small, pre-blurred twin (same frames, 480×270), which the frosted glass is drawn from,
+     * so the 4K clip can stay on the TV's video plane. Downloads it if needed. Off the main thread.
+     */
+    fun glassFor(ctx: android.content.Context, clip: File): File? {
+        val g = File(clip.parentFile, clip.name.removeSuffix(".mp4") + ".glass.mp4")
+        if (g.exists() && g.length() > 0) return g
+        val id = clip.name.substringBefore(".v")
+        val base = list(ctx).firstOrNull { it.id == id }?.url?.removeSuffix("$id.mp4") ?: return null
+        return try {
+            val tmp = File(g.parentFile, g.name + ".part")
+            val conn = (URL("$base$id.glass.mp4").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15000; readTimeout = 30000; instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "HearthTV/1.0")
+            }
+            if (conn.responseCode !in 200..299) { Log.w(TAG, "$id glass: HTTP ${conn.responseCode}"); return null }
+            conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it, 1 shl 16) } }
+            conn.disconnect()
+            tmp.renameTo(g)
+            g
+        } catch (e: Exception) { Log.w(TAG, "$id glass: ${e.message}"); null }
+    }
 
     @Synchronized
     private fun download(ctx: android.content.Context, c: Clip): File? {
@@ -124,9 +150,13 @@ object Backgrounds {
             conn.disconnect()
             tmp.renameTo(file)
             Log.i(TAG, "downloaded ${c.id} (${file.length() / 1_000_000} MB)")
-            dir(ctx).listFiles()?.filter { it.name.endsWith(".mp4") }
+            dir(ctx).listFiles()?.filter { isClip(it) }
                 ?.sortedByDescending { it.lastModified() }?.drop(KEEP)
                 ?.filter { !it.name.startsWith("${currentId(ctx)}.") }?.forEach { it.delete() }
+            // and any glass twin whose clip is gone
+            val clips = dir(ctx).listFiles()?.filter { isClip(it) }?.map { it.name.removeSuffix(".mp4") }?.toSet() ?: emptySet()
+            dir(ctx).listFiles()?.filter { it.name.endsWith(".glass.mp4") && it.name.removeSuffix(".glass.mp4") !in clips }
+                ?.forEach { it.delete() }
             file
         } catch (e: Exception) {
             Log.w(TAG, "download ${c.id} failed: ${e.message}")
