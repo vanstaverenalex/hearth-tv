@@ -522,12 +522,10 @@ class MainActivity : Activity() {
         for (t in dockButtons) if (!(t.face.parent as View).isFocused) pane(t.face, 0f, dp(TILE_R))
 
         // Live TV
-        pane(guideBar, 0f, 999f)
         guideView.glassFade(fadeBand)
         cells(guideView, guideView.glassCells, guideView.glassTones, dp(10f), fadeBand)
 
         // Apps
-        pane(libBar, 0f, 999f)
         pane(libHint, 0f, dp(14f))
         if (seen(libGrid, sc) > 0.004f) {
             val rects = ArrayList<RectF>()
