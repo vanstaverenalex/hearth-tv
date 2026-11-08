@@ -44,18 +44,34 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      # Publishing the exact commit that already passed on the preview branch? Don't test it twice.
+      - name: Already tested on preview?
+        id: prior
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          done=false
+          for id in $(gh api "repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&branch=preview&per_page=20" --jq '.workflow_runs[].id'); do
+            if gh api "repos/${{ github.repository }}/actions/runs/$id/jobs" --jq '.jobs[] | select(.name=="smoke" and .conclusion=="success") | .id' | grep -q .; then done=true; fi
+          done
+          echo "done=$done" >> "$GITHUB_OUTPUT"
+          echo "already tested on preview: $done"
       - uses: actions/download-artifact@v4
+        if: steps.prior.outputs.done != 'true'
         with:
           name: apk
       - name: Enable KVM
+        if: steps.prior.outputs.done != 'true'
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Run on the TV emulator
+        if: steps.prior.outputs.done != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
@@ -66,7 +82,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: bash tools/smoke.sh HearthTV.apk
       - name: Publish screenshots (release "preview-shots", never marked latest)
-        if: always()
+        if: always() && steps.prior.outputs.done != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
