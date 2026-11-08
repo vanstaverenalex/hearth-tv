@@ -1,5 +1,5 @@
 {
- "_about": "Live backgrounds for Hearth TV: calm 4K landscapes and nature scenes, played at half speed (no time-lapses). A GitHub Action turns each Pexels source into a seamless 4K loop and uploads it to the 'backgrounds' release as <id>.mp4 (+ <id>.jpg preview). The TV shuffles through all of them; the skip button in the light/dark pill moves to the next. All sources are free under the Pexels license. Bump 'v' on a clip to re-encode it.",
+ "_about": "Live backgrounds for Hearth TV: calm 4K landscapes, played at half speed (no time-lapses). A GitHub Action turns each Pexels source into a seamless 4K loop and uploads it to the 'backgrounds' release as <id>.mp4 (+ <id>.jpg preview). The TV shuffles through all of them; the skip button in the light/dark pill moves to the next. All sources are free under the Pexels license. Bump 'v' on a clip to re-encode it.",
  "release": "https://github.com/vanstaverenalex/hearth-tv/releases/download/backgrounds/",
  "clips": [
   {
@@ -8,9 +8,9 @@
    "src": "https://videos.pexels.com/video-files/34623325/14673675_3840_2160_30fps.mp4"
   },
   {
-   "id": "sunlit-reef",
-   "v": 3,
-   "src": "https://videos.pexels.com/video-files/34319167/14539046_3840_2160_60fps.mp4"
+   "id": "clouds-at-dusk",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/2314125/2314125-uhd_3840_2160_24fps.mp4"
   },
   {
    "id": "swiss-alps-lake",
@@ -18,9 +18,9 @@
    "src": "https://videos.pexels.com/video-files/32873553/14011499_3840_2160_24fps.mp4"
   },
   {
-   "id": "sunrays-underwater",
-   "v": 3,
-   "src": "https://videos.pexels.com/video-files/40432354/17276626_3840_2160_25fps.mp4"
+   "id": "snowy-range",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/28891517/12521450_3840_2160_24fps.mp4"
   },
   {
    "id": "mountain-lake-calm",
@@ -28,9 +28,9 @@
    "src": "https://videos.pexels.com/video-files/39827348/16986941_3840_2160_30fps.mp4"
   },
   {
-   "id": "blue-light-rays",
-   "v": 3,
-   "src": "https://videos.pexels.com/video-files/32790667/13977647_3840_2160_60fps.mp4"
+   "id": "turquoise-shallows",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/33327243/14191765_3840_2160_30fps.mp4"
   },
   {
    "id": "forest-lake-autumn",
@@ -38,9 +38,9 @@
    "src": "https://videos.pexels.com/video-files/40348503/17239927_3840_2160_30fps.mp4"
   },
   {
-   "id": "jungle-sunbeams",
-   "v": 3,
-   "src": "https://videos.pexels.com/video-files/37218119/15766872_3840_2160_30fps.mp4"
+   "id": "turquoise-mountain-lake",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/28891594/12521512_3840_2160_24fps.mp4"
   },
   {
    "id": "mountain-sea-of-clouds",
@@ -48,9 +48,9 @@
    "src": "https://videos.pexels.com/video-files/5903753/5903753-uhd_3840_2160_24fps.mp4"
   },
   {
-   "id": "oak-breeze",
-   "v": 3,
-   "src": "https://videos.pexels.com/video-files/36482293/15469402_3840_2160_60fps.mp4"
+   "id": "mist-over-hills",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/28303673/12356067_3840_2160_30fps.mp4"
   },
   {
    "id": "clouds-over-ridge",
@@ -58,9 +58,9 @@
    "src": "https://videos.pexels.com/video-files/12078525/12078525-uhd_3840_2160_30fps.mp4"
   },
   {
-   "id": "koi-pond",
-   "v": 3,
-   "src": "https://videos.pexels.com/video-files/32102283/13686674_3840_2160_24fps.mp4"
+   "id": "autumn-waterfall",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/40180962/17165153_3840_2160_50fps.mp4"
   },
   {
    "id": "sea-of-clouds",
