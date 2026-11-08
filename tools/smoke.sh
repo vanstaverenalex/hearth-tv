@@ -51,7 +51,7 @@ shot home-again 4
 
 adb shell run-as $PKG cat files/hearth-log.txt > "$OUT/hearth-log.txt" 2>/dev/null || \
   adb shell cat /sdcard/Android/data/$PKG/files/hearth-log.txt > "$OUT/hearth-log.txt" 2>/dev/null || true
-adb logcat -d -s HearthGuide HearthBg HearthHome HearthDisplay AndroidRuntime > "$OUT/logcat.txt" || true
+adb logcat -d -s HearthGlass HearthGuide HearthBg HearthHome HearthDisplay AndroidRuntime > "$OUT/logcat.txt" || true
 
 if crashed || ! adb shell pidof $PKG >/dev/null; then
   echo "::error::Hearth crashed on the emulator"

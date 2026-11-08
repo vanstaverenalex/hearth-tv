@@ -110,6 +110,8 @@ class MainActivity : Activity() {
         prefs = Prefs(this)
         buildViews()
         setContentView(root)
+        video.scene.onGlassFailed = { useDrawnGlass() }
+        root.viewTreeObserver.addOnPreDrawListener { pushGlass(); true }
         if (intent?.getStringExtra(EXTRA_OPEN) == "guide") root.post { openGuide() }
         intent?.let { root.post { handleShot(it) } }
     }
@@ -163,6 +165,7 @@ class MainActivity : Activity() {
         reloadApps()
         if (System.currentTimeMillis() - lastWeatherAt > 20 * 60_000) refreshWeather()
         applyTheme(force = true)
+        video.hostResume()
         video.resume()
         resumed = true
         ui.removeCallbacks(santaRun)
@@ -175,6 +178,7 @@ class MainActivity : Activity() {
         santa.stop()
         ui.removeCallbacksAndMessages(null)
         video.stop()     // never hold the decoder while another app is on screen
+        video.hostPause()
     }
 
     // ------------------------------------------------------------------ layout
@@ -210,7 +214,7 @@ class MainActivity : Activity() {
             setPadding(dpi(SH + 15f), dpi(SH + 12f), dpi(SH + 13.5f), dpi(SH + 15f))
         }
         cardGlass = GlassDrawable(this, PANEL_R, true, panel = true)
-        card.background = cardGlass
+        card.background = null    // the GPU draws this glass; see pushGlass()
 
         // Header: mark · Hearth / Van Staveren Household · [☀ ☾ A] · ⏭ · ⚙
         val header = LinearLayout(this).apply {
@@ -311,7 +315,7 @@ class MainActivity : Activity() {
             setPadding(dpi(SH + GAP), dpi(SH + GAP / 2), dpi(SH + GAP / 2), dpi(SH + GAP / 2))
         }
         dockGlass = GlassDrawable(this, PANEL_R, true, panel = true)
-        dock.background = dockGlass
+        dock.background = null
         liveButton = dockButton(R.drawable.ic_livetv, 22.5f, "Live TV") { openGuide() }
         appsButton = dockButton(R.drawable.ic_apps, 21f, "Apps") { openLibrary() }
         dock.addView(liveButton, LinearLayout.LayoutParams(dpi(TILE_W), dpi(TILE_H)).apply {
@@ -409,7 +413,48 @@ class MainActivity : Activity() {
         t.face.background = if (focused) LayerDrawable(arrayOf(
             GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Hearth.PURPLE, Hearth.PINK)).apply { cornerRadius = dp(TILE_R) },
             rimDrawable(this, TILE_R, true, dark),
-        )) else GlassDrawable(this, TILE_R, dark)
+        )) else if (gpuGlass) null else GlassDrawable(this, TILE_R, dark)
+    }
+
+    // ------------------------------------------------------------------ liquid glass (GPU)
+
+    /** True while the GPU draws the home screen's glass (card, dock, Live TV / Apps tiles). */
+    private var gpuGlass = true
+    private val loc = IntArray(2)
+
+    /** The video's GL layer can't do glass on this TV: go back to drawn glass. */
+    private fun useDrawnGlass() {
+        if (!gpuGlass) return
+        gpuGlass = false
+        Diag.log(this, "glass: GPU glass unavailable, using drawn glass")
+        card.background = cardGlass; dock.background = dockGlass
+        for (t in dockButtons) styleDockButton(t, (t.face.parent as View).isFocused)
+        video.scene.setPanels(emptyList())
+    }
+
+    /** Tell the GL layer where each pane of glass is right now (called before every UI frame). */
+    private fun pushGlass() {
+        if (!gpuGlass) return
+        val sh = dpi(SH).toFloat()
+        val list = ArrayList<GlassScene.Panel>(4)
+        fun pane(v: View, inset: Float, radiusDp: Float, alpha: Float, frost: Float, shadow: Float) {
+            if (!v.isShown || alpha <= 0.004f || v.width == 0) return
+            v.getLocationInWindow(loc)
+            var sx = 1f; var sy = 1f
+            var p: View? = v
+            while (p != null && p !== root) { sx *= p.scaleX; sy *= p.scaleY; p = p.parent as? View }
+            val l = loc[0] + inset * sx; val t = loc[1] + inset * sy
+            list += GlassScene.Panel(l, t, l + (v.width - 2 * inset) * sx, t + (v.height - 2 * inset) * sy,
+                dp(radiusDp) * sx, alpha, frost, shadow)
+        }
+        val shadow = if (dark) 0.42f else 0.16f
+        pane(card, sh, PANEL_R, card.alpha, 0.90f, shadow)
+        pane(dock, sh, PANEL_R, dock.alpha, 0.82f, shadow)
+        for (t in dockButtons) {
+            val holder = t.face.parent as View
+            if (!holder.isFocused) pane(t.face, 0f, TILE_R, dock.alpha, 0.55f, 0f)
+        }
+        video.scene.setPanels(list)
     }
 
     private fun headerTitle(text: String) = TextView(this).apply {
@@ -537,6 +582,7 @@ class MainActivity : Activity() {
         weatherRange.setTextColor(inkA(178))
         weatherIcon.setColorFilter(ink)
         cardGlass.dark = dark
+        video.scene.dark = dark
         cardRule.setBackgroundColor(inkA(if (dark) 41 else 31))
 
         dockGlass.dark = dark
