@@ -380,36 +380,48 @@ void main() {
     float e = max(-d, 0.0);
     float W = min(P.x * 1.25, min(R.z, R.w) * 0.85);
     float t = clamp(1.0 - e / W, 0.0, 1.0);
-    float bend = t * t * t;
+    // Circular lens profile: flat in the middle, bending harder and harder toward the rim.
+    float bend = 1.0 - sqrt(max(1.0 - t * t, 0.0));
 
-    // Lens edge: near the rim, pull in the scene from just outside the pane.
-    vec2 off = n * bend * W * 0.9;
+    // Lens edge: near the rim, the pane pulls in the scene from just outside itself.
+    vec2 off = n * bend * W;
     vec2 uv = (p + off) / uRes;
-    vec2 ca = n * bend * 3.0 * uPx / uRes;
+    vec2 ca = n * bend * 3.0 * uPx / uRes;                 // a hint of colour fringing at the edge
     vec3 sharp = vec3(video(uv + ca).r, video(uv).g, video(uv - ca).b);
     vec3 soft = vec3(texture2D(uBlur, uv + ca * 2.0).r, texture2D(uBlur, uv).g, texture2D(uBlur, uv - ca * 2.0).b);
-    vec3 g = mix(sharp, soft, P.z);
+    float frost = P.z * (1.0 - 0.6 * t);                    // the bent rim stays clearer than the middle
+    vec3 g = mix(sharp, soft, frost);
 
     // Vibrancy: glass keeps the colours behind it rich rather than greying them.
     float lum = dot(g, vec3(0.299, 0.587, 0.114));
-    g = mix(vec3(lum), g, 1.32);
+    g = mix(vec3(lum), g, 1.35);
+    lum = dot(g, vec3(0.299, 0.587, 0.114));
     if (uDark > 0.5) {
-      g = g * 0.58 + vec3(0.012, 0.014, 0.034);
+      // darker glass; very bright scenes roll off gently so white text always reads
+      g = g * 0.66 + vec3(0.010, 0.012, 0.030);
+      float l2 = lum * 0.66 + 0.001;
+      g *= (0.5 * (1.0 - exp(-l2 / 0.5))) / l2;
     } else {
-      g = mix(g, vec3(1.0), 0.46) + vec3(0.02);
+      // lighter glass; dark scenes are lifted just enough for dark text to read
+      g = g * 0.76 + vec3(0.26);
+      float l2 = lum * 0.76 + 0.24;
+      g += vec3(0.8 * max(0.0, 0.66 - l2));
     }
 
-    // Light: a crisp rim lit from the top-left, a softer kick at the bottom-right,
-    // and a gentle glow in the curved lip just inside the rim.
-    float key = pow(max(dot(n, L), 0.0), 1.4);
-    float kick = pow(max(dot(n, -L), 0.0), 1.8);
+    // Light: a crisp rim lit from the top-left (softer kick at the bottom-right), a broad
+    // specular band inside the lit edge, and a gentle glow in the curved lip.
+    float lit = dot(n, L);
+    float key = pow(max(lit, 0.0), 1.4);
+    float kick = pow(max(-lit, 0.0), 1.8);
     float rim = 1.0 - smoothstep(0.35 * uPx, 1.7 * uPx, e);
     float lip = t * t;
+    float band = pow(clamp(1.0 - e / (W * 0.5), 0.0, 1.0), 2.0) * pow(max(lit, 0.0), 3.5);
     float hi = (uDark > 0.5) ? 1.0 : 0.85;
-    g += rim * (0.16 + 0.80 * key + 0.42 * kick) * hi;
-    g += lip * (0.035 + 0.20 * key + 0.10 * kick) * hi;
+    g += rim * (0.06 + 0.95 * key + 0.50 * kick) * hi;
+    g += lip * (0.03 + 0.18 * key + 0.08 * kick) * hi;
+    g += band * 0.30 * hi;
     // a faint inner shade on the side away from the light gives the pane thickness
-    g -= lip * 0.08 * max(dot(n, -L), 0.0) * (uDark > 0.5 ? 1.0 : 0.4);
+    g -= lip * 0.08 * max(-lit, 0.0) * (uDark > 0.5 ? 1.0 : 0.4);
 
     col = mix(col, clamp(g, 0.0, 1.0), cover);
   }

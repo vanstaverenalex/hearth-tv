@@ -448,11 +448,11 @@ class MainActivity : Activity() {
                 dp(radiusDp) * sx, alpha, frost, shadow)
         }
         val shadow = if (dark) 0.42f else 0.16f
-        pane(card, sh, PANEL_R, card.alpha, 0.90f, shadow)
-        pane(dock, sh, PANEL_R, dock.alpha, 0.82f, shadow)
+        pane(card, sh, PANEL_R, card.alpha, 0.75f, shadow)
+        pane(dock, sh, PANEL_R, dock.alpha, 0.50f, shadow)
         for (t in dockButtons) {
             val holder = t.face.parent as View
-            if (!holder.isFocused) pane(t.face, 0f, TILE_R, dock.alpha, 0.55f, 0f)
+            if (!holder.isFocused) pane(t.face, 0f, TILE_R, dock.alpha, 0.35f, 0f)
         }
         video.scene.setPanels(list)
     }
