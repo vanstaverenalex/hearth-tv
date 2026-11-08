@@ -161,7 +161,7 @@ class MainActivity : Activity() {
                 v.animate().cancel(); v.visibility = View.VISIBLE; v.alpha = 1f; v.translationY = 0f
             }
             placeTag.animate().cancel(); placeTag.translationY = 0f
-            if (placeText.text.isNotEmpty()) { placeTag.visibility = View.VISIBLE; placeTag.alpha = 1f }
+            if (placeText.text.isNotEmpty()) { placeTag.visibility = View.VISIBLE; placeTag.alpha = 0.92f }
         }
         favRow.scrollToPosition(0)
         focusLive()
@@ -214,14 +214,13 @@ class MainActivity : Activity() {
         // Where the current scene was filmed, top-right (like Windows Spotlight)
         placeTag = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; alpha = 0f
-            setPadding(dpi(11f), dpi(6f), dpi(12f), dpi(6f))   // a small frosted pill (GPU glass)
         }
         placeIcon = ImageView(this).apply { setImageResource(R.drawable.ic_pin) }
         placeText = TextView(this).apply { style(10.5f, Fonts.body(this@MainActivity, 600), Color.WHITE, 0.01f) }
         placeTag.addView(placeIcon, LinearLayout.LayoutParams(dpi(11f), dpi(11f)).apply { marginEnd = dpi(5f) })
         placeTag.addView(placeText)
         root.addView(placeTag, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
-            rightMargin = dpi(EDGE); topMargin = dpi(24f)
+            rightMargin = dpi(EDGE + 4f); topMargin = dpi(30f)
         })
 
         // ---- One grid for the whole home screen: the info card and the dock share the same
@@ -521,7 +520,6 @@ class MainActivity : Activity() {
         pane(card, sh, dp(PANEL_R), shadow)
         pane(dock, sh, dp(PANEL_R), shadow)
         for (t in dockButtons) if (!(t.face.parent as View).isFocused) pane(t.face, 0f, dp(TILE_R))
-        if (placeText.text.isNotEmpty()) pane(placeTag, 0f, 999f)
 
         // Live TV
         pane(guideBar, 0f, 999f)
@@ -676,7 +674,8 @@ class MainActivity : Activity() {
         video.scene.dark = dark
         val tagInk = if (dark) Color.WHITE else Hearth.INK_DARK
         placeText.setTextColor(tagInk); placeIcon.setColorFilter(tagInk)
-        placeTag.background = if (gpuGlass) null else GlassDrawable(this, 14f, dark)
+        // Just the pin and the words, kept crisp: a tight, faint shadow (no smudgy glow) so it reads on any sky.
+        placeText.setShadowLayer(dp(1.2f), 0f, dp(0.6f), if (dark) Color.argb(110, 0, 0, 0) else Color.argb(150, 255, 255, 255))
         cardRule.setBackgroundColor(inkA(if (dark) 41 else 31))
 
         dockGlass.dark = dark
@@ -780,7 +779,7 @@ class MainActivity : Activity() {
             if (place == null) { placeText.text = ""; placeTag.visibility = View.GONE; return@withEndAction }
             placeText.text = place
             placeTag.visibility = View.VISIBLE
-            placeTag.animate().alpha(if (overlay == null) 1f else 0f).setDuration(700).setStartDelay(500)
+            placeTag.animate().alpha(if (overlay == null) 0.92f else 0f).setDuration(700).setStartDelay(500)
                 .setInterpolator(Ease.out).start()
         }.start()
     }
@@ -917,7 +916,7 @@ class MainActivity : Activity() {
         placeTag.animate().cancel()
         if (placeText.text.isNotEmpty()) {
             placeTag.visibility = View.VISIBLE
-            placeTag.animate().alpha(1f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).start()
+            placeTag.animate().alpha(0.92f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).start()
         }
         val btn = if (which == "apps") appsButton else liveButton
         dock.post { btn?.requestFocus() }
