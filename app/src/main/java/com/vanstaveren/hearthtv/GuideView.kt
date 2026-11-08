@@ -324,6 +324,28 @@ class GuideView(context: Context) : View(context) {
 
     // ---------------------------------------------------------------- drawing
 
+    // Frosted cells: translucent fill, a soft sheen at the top, and a hairline border (same look as the home glass).
+    private val sheenShader = LinearGradient(0f, 0f, 0f, 1f, Color.WHITE, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+    private val sheenMatrix = android.graphics.Matrix()
+    private val sheenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = sheenShader }
+    private val hairline = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+
+    private fun frostCell(canvas: Canvas, r: RectF, body: Float) {
+        fill.shader = null
+        fill.color = Color.argb((body * 255).toInt(), 255, 255, 255)
+        canvas.drawRoundRect(r, radius, radius, fill)
+        sheenMatrix.setScale(1f, r.height() * 0.7f); sheenMatrix.postTranslate(0f, r.top)
+        sheenShader.setLocalMatrix(sheenMatrix)
+        sheenPaint.alpha = if (dark) 18 else 46
+        canvas.drawRoundRect(r, radius, radius, sheenPaint)
+        hairline.strokeWidth = maxOf(1f, dp(0.8f))
+        hairline.color = if (dark) Color.argb(if (body > 0.1f) 62 else 38, 255, 255, 255) else Color.argb(if (body > 0.5f) 235 else 190, 255, 255, 255)
+        val e = hairline.strokeWidth / 2
+        tmpFrost.set(r.left + e, r.top + e, r.right - e, r.bottom - e)
+        canvas.drawRoundRect(tmpFrost, radius - e, radius - e, hairline)
+    }
+    private val tmpFrost = RectF()
+
     private fun fit(text: String, paint: TextPaint, w: Float): String {
         val key = "${paint.textSize}|${paint.typeface?.hashCode()}|${(w / 4).toInt()}|$text"
         ellipsized[key]?.let { return it }
@@ -391,21 +413,18 @@ class GuideView(context: Context) : View(context) {
             val list = programsFor(ch)
             if (list.isEmpty()) {
                 cell.set(tlLeft() + gap / 2, cellTop + gap / 2, tlRight() - gap / 2, cellTop + rowH - gap / 2)
-                fill.shader = null; fill.color = if (dark) Color.argb(12, 255, 255, 255) else Color.argb(80, 255, 255, 255)
-                canvas.drawRoundRect(cell, radius, radius, fill)
+                frostCell(canvas, cell, if (dark) 0.04f else 0.30f)
             }
             for (p in list) {
                 if (p.end <= win || p.start >= winEnd) continue
                 cellRect(p.start, p.end, cellTop, win, cell)
                 if (cell.width() < dp(6f)) continue
                 val airing = now >= p.start && now < p.end
-                fill.shader = null
-                fill.color = when {
-                    p.gap -> if (dark) Color.argb(10, 255, 255, 255) else Color.argb(70, 255, 255, 255)
-                    airing -> if (dark) Color.argb(30, 255, 255, 255) else Color.argb(185, 255, 255, 255)
-                    else -> if (dark) Color.argb(17, 255, 255, 255) else Color.argb(120, 255, 255, 255)
-                }
-                canvas.drawRoundRect(cell, radius, radius, fill)
+                frostCell(canvas, cell, when {
+                    p.gap -> if (dark) 0.035f else 0.26f
+                    airing -> if (dark) 0.12f else 0.66f
+                    else -> if (dark) 0.07f else 0.46f
+                })
                 drawCell(canvas, p, cell, now, airing, ink, ::inkA)
             }
         }

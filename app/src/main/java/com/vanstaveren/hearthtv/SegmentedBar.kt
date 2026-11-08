@@ -106,8 +106,10 @@ class SegmentedBar(context: Context) : View(context) {
             canvas.drawRoundRect(r, rad, rad, rim)
         } else {
             pill.shader = null
-            pill.color = if (dark) Color.argb(60, 255, 255, 255) else Color.WHITE
+            pill.color = if (dark) Color.argb(48, 255, 255, 255) else Color.argb(215, 255, 255, 255)
             canvas.drawRoundRect(r, rad, rad, pill)
+            rim.color = if (dark) Color.argb(90, 255, 255, 255) else Color.WHITE   // frosted hairline
+            canvas.drawRoundRect(r, rad, rad, rim)
         }
         val ink = if (dark) Color.WHITE else Hearth.INK_DARK
         var x = inset

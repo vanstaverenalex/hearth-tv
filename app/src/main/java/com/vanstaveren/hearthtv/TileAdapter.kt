@@ -118,10 +118,7 @@ class TileAdapter(
             val hi = Color.HSVToColor(floatArrayOf(hsv[0], hsv[1] * 0.9f, minOf(1f, hsv[2] + 0.16f)))
             val lo = Color.HSVToColor(floatArrayOf(hsv[0], hsv[1], maxOf(0f, hsv[2] - 0.14f)))
             GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(hi, lo)).apply { cornerRadius = ctx.dp(radiusDp) }
-        } else GradientDrawable().apply {
-            cornerRadius = ctx.dp(radiusDp)
-            setColor(if (dark) Color.argb(235, 22, 22, 34) else Color.argb(235, 246, 248, 252))
-        }
+        } else GlassDrawable(ctx, radiusDp, dark)   // frosted, like every other card
         h.card.foreground = rimDrawable(ctx, radiusDp, h.root.isFocused, dark)
 
         if (banner != null) {

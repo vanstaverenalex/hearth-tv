@@ -78,14 +78,9 @@ fun View.roundClip(radiusDp: Float) {
 }
 
 /**
- * Liquid Glass panel, drawn once into a dithered bitmap at the screen's real resolution
- * (TV GPUs band soft gradients badly, so nothing here is drawn live).
- *
- * Layers, back to front: soft drop shadow (panels only) · tinted body with a top-to-bottom falloff ·
- * a top-left sheen · fine frosted grain · a specular band along the top · a soft inner edge glow ·
- * a refracted hairline rim (bright top-left, dimmer sides, catching light again bottom-right) ·
- * an outer definition line so the edge reads over bright or busy video.
- * Android 11 can't blur the live video behind it, so the frosting is suggested by tint, grain and light.
+ * Frosted glass for pills, menus and hints, drawn once into a dithered bitmap at the screen's real
+ * resolution (TV GPUs band soft gradients badly). Same look as the home screen's GPU glass: translucent
+ * body, soft top-left sheen, hairline border bright at the top-left and bottom-right; panels get a shadow.
  */
 class GlassDrawable(
     private val ctx: Context,
@@ -133,7 +128,6 @@ object GlassArt {
     private val cache = object : LinkedHashMap<String, android.graphics.Bitmap>(32, 0.75f, true) {
         override fun removeEldestEntry(e: MutableMap.MutableEntry<String, android.graphics.Bitmap>?) = size > 48
     }
-    private var grain: android.graphics.Bitmap? = null
 
     @Synchronized
     fun get(ctx: Context, w: Int, h: Int, rDp: Float, dark: Boolean, panel: Boolean, s: Float, pad: Int): android.graphics.Bitmap {
@@ -141,14 +135,11 @@ object GlassArt {
         return cache[key] ?: render(ctx, w, h, rDp, dark, panel, s, pad).also { cache[key] = it }
     }
 
-    /** Fine monochrome noise; tiled across the glass it reads as frosting and hides gradient banding. */
-    private fun grain(): android.graphics.Bitmap = grain ?: run {
-        val n = 128
-        val rnd = java.util.Random(7)
-        val px = IntArray(n * n) { if (rnd.nextBoolean()) Color.argb(rnd.nextInt(256), 255, 255, 255) else Color.argb(rnd.nextInt(256), 0, 0, 0) }
-        android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888).also { grain = it }
-    }
-
+    /**
+     * Frosted glass (glassmorphism), matching the home screen's GPU glass: a translucent fill, a soft
+     * sheen pooling in the top-left, and a hairline border that is brightest at the top-left, faint
+     * along the middle and catches the light again at the bottom-right. Panels also get a soft shadow.
+     */
     private fun render(ctx: Context, w: Int, h: Int, rDp: Float, dark: Boolean, panel: Boolean, s: Float, pad: Int): android.graphics.Bitmap {
         val bmp = android.graphics.Bitmap.createBitmap(w + 2 * pad, h + 2 * pad, android.graphics.Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
@@ -162,7 +153,7 @@ object GlassArt {
 
         // 1. Shadow, outside the glass only
         if (panel && pad > 0) {
-            p.color = if (dark) Color.argb(a(0.42f), 0, 2, 12) else Color.argb(a(0.16f), 24, 34, 70)
+            p.color = if (dark) Color.argb(a(0.34f), 0, 2, 12) else Color.argb(a(0.14f), 24, 34, 70)
             p.maskFilter = BlurMaskFilter(dp(11f), BlurMaskFilter.Blur.NORMAL)
             c.drawRoundRect(RectF(dp(4f), dp(5f), w - dp(4f), h + dp(5f)), r, r, p)
             p.maskFilter = null
@@ -171,79 +162,26 @@ object GlassArt {
             p.xfermode = null
         }
 
-        // 2. Body
+        // 2. Translucent body with a soft top-left sheen
         val clip = android.graphics.Path().apply { addRoundRect(rect, r, r, android.graphics.Path.Direction.CW) }
         c.save(); c.clipPath(clip)
-        val tint = when {
-            dark && panel -> Color.argb(a(0.34f), 8, 12, 30)
-            dark -> Color.argb(a(0.10f), 8, 12, 30)
-            panel -> Color.argb(a(0.46f), 250, 252, 255)
-            else -> Color.argb(a(0.30f), 250, 252, 255)
-        }
-        p.shader = null; p.color = tint; c.drawRect(rect, p)
-        p.color = Color.BLACK   // opaque again: from here on the shaders carry all the alpha
-        p.shader = LinearGradient(0f, 0f, 0f, h.toFloat(),
-            if (dark) intArrayOf(white(0.13f), white(0.045f), white(0.03f)) else intArrayOf(white(0.40f), white(0.22f), white(0.16f)),
-            floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
+        p.color = if (dark) white(0.085f) else white(0.46f)
         c.drawRect(rect, p)
-        // top-left sheen, like light pooling in the glass
-        val rad = maxOf(w, h) * 0.85f
-        p.shader = android.graphics.RadialGradient(w * 0.16f, -h * 0.25f, rad,
-            intArrayOf(white(if (dark) 0.13f else 0.32f), white(if (dark) 0.04f else 0.10f), Color.TRANSPARENT),
-            floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
-        c.drawRect(rect, p)
-        // frosted grain
-        p.shader = android.graphics.BitmapShader(grain(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-        p.alpha = a(if (dark) 0.035f else 0.045f)
-        c.drawRect(rect, p)
-        p.alpha = 255
-        // specular band along the top edge
-        val inset = dp(1.2f)
-        val spec = RectF(inset, inset, w - inset, minOf(h * 0.5f, dp(70f)))
-        p.shader = LinearGradient(0f, spec.top, 0f, spec.bottom,
-            intArrayOf(white(if (dark) 0.10f else 0.34f), Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
-        c.drawRoundRect(RectF(inset, inset, w - inset, h - inset), r - inset, r - inset, p)
-        // depth: a faint shade gathering at the bottom
-        p.shader = LinearGradient(0f, h * 0.62f, 0f, h.toFloat(),
-            intArrayOf(Color.TRANSPARENT, if (dark) Color.argb(a(0.10f), 0, 0, 0) else Color.argb(a(0.035f), 20, 30, 60)),
-            null, Shader.TileMode.CLAMP)
+        p.color = Color.BLACK
+        p.shader = LinearGradient(0f, 0f, w * 0.6f, h.toFloat(),
+            intArrayOf(white(if (dark) 0.10f else 0.18f), Color.TRANSPARENT), floatArrayOf(0f, 1f), Shader.TileMode.CLAMP)
         c.drawRect(rect, p)
         p.shader = null
         c.restore()
 
-        // 3. Soft inner edge glow (the thick, bright lip of real glass)
-        val glowW = dp(2.2f)
-        p.style = Paint.Style.STROKE; p.strokeWidth = glowW
-        p.maskFilter = BlurMaskFilter(dp(1.6f), BlurMaskFilter.Blur.NORMAL)
-        p.shader = LinearGradient(0f, 0f, w * 0.35f, h.toFloat(),
-            intArrayOf(white(if (dark) 0.22f else 0.70f), white(if (dark) 0.03f else 0.18f), white(if (dark) 0.08f else 0.35f)),
-            floatArrayOf(0f, 0.6f, 1f), Shader.TileMode.CLAMP)
-        val g = glowW / 2 + dp(0.8f)
-        c.save(); c.clipPath(clip)
-        c.drawRoundRect(RectF(g, g, w - g, h - g), r - g, r - g, p)
-        c.restore()
-        p.maskFilter = null
-
-        // 4. Refracted hairline rim
-        val hw = maxOf(1f, dp(0.9f))
-        p.strokeWidth = hw
+        // 3. Hairline border
+        val hw = maxOf(1f, dp(0.8f))
+        p.style = Paint.Style.STROKE; p.strokeWidth = hw
         p.shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(),
-            if (dark) intArrayOf(white(0.75f), white(0.22f), white(0.12f), white(0.42f))
-            else intArrayOf(white(1f), white(0.70f), white(0.55f), white(0.90f)),
-            floatArrayOf(0f, 0.38f, 0.62f, 1f), Shader.TileMode.CLAMP)
+            if (dark) intArrayOf(white(0.55f), white(0.12f), white(0.30f)) else intArrayOf(white(0.95f), white(0.45f), white(0.75f)),
+            floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
         val e = hw / 2
         c.drawRoundRect(RectF(e, e, w - e, h - e), r - e, r - e, p)
-
-        // 5. Outer definition line
-        p.shader = null
-        p.color = if (dark) Color.argb(a(0.30f), 0, 0, 0) else Color.argb(a(0.10f), 11, 23, 38)
-        p.strokeWidth = maxOf(1f, dp(0.6f))
-        if (pad > 0) {
-            val o = -p.strokeWidth / 2
-            c.save(); c.clipOutRectCompat(rect, r)
-            c.drawRoundRect(RectF(o, o, w - o, h - o), r - o, r - o, p)
-            c.restore()
-        }
         return bmp
     }
 
