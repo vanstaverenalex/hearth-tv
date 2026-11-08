@@ -16,10 +16,10 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 /**
- * The live background, drawn with OpenGL so the home screen's glass can be real Liquid Glass:
- * each glass panel bends the video at its rim like the edge of a lens, blurs and brightens what's
- * behind it, splits a hint of colour at the edge, and catches a crisp highlight along the top-left
- * and bottom-right of its rim. The video and the glass are drawn at the TV panel's own resolution (4K).
+ * The live background, drawn with OpenGL so the home screen's glass panes are real frosted glass:
+ * the moving scene shows through each pane deeply blurred, gently toned so text stays readable,
+ * with a soft sheen in the top-left, a hairline border that catches the light at the top-left and
+ * bottom-right, and a soft shadow underneath. Video and glass are drawn at the panel's own resolution (4K).
  *
  * If the glass shader can't be built on a TV, the video still plays (plain pass-through) and
  * [onGlassFailed] lets the UI fall back to drawn glass.
@@ -177,7 +177,7 @@ class GlassScene(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
             return
         }
 
-        // 1) video → 960×540, 2) blur at 480×270 (two rounds), all in screen space.
+        // 1) video → 960×540, 2) blur at 480×270 (three rounds), all in screen space.
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo[0]); GLES20.glViewport(0, 0, fboW[0], fboH[0])
         use(progDown); bindVideo(progDown, cx, cy)
         GLES20.glUniform2f(GLES20.glGetUniformLocation(progDown, "uStep"), 0.5f / fboW[0], 0.5f / fboH[0])
@@ -186,6 +186,8 @@ class GlassScene(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         blur(fboTex[1], fbo[2], 0f, 1f / fboH[1])
         blur(fboTex[2], fbo[1], 1.6f / fboW[1], 0f)
         blur(fboTex[1], fbo[2], 0f, 1.6f / fboH[1])
+        blur(fboTex[2], fbo[1], 2.4f / fboW[1], 0f)        // a third round: a deep, creamy frost
+        blur(fboTex[1], fbo[2], 0f, 2.4f / fboH[1])
 
         // 3) the screen: video, with each pane of glass on top
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
@@ -346,83 +348,59 @@ uniform vec4 uRect[6];
 uniform vec4 uP[6];
 $VIDEO
 
-float sdRR(vec2 p, vec2 c, vec2 h, float r, out vec2 n) {
-  vec2 d = p - c;
-  vec2 q = abs(d) - h + r;
-  vec2 qm = max(q, 0.0);
-  float lq = length(qm);
-  vec2 nn = (q.x > 0.0 && q.y > 0.0) ? qm / max(lq, 0.0001) : ((q.x > q.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
-  n = nn * vec2(d.x < 0.0 ? -1.0 : 1.0, d.y < 0.0 ? -1.0 : 1.0);
-  return lq + min(max(q.x, q.y), 0.0) - r;
+float sdRR(vec2 p, vec2 c, vec2 h, float r) {
+  vec2 q = abs(p - c) - h + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
 }
 
 void main() {
   vec2 p = vUv * uRes;
   vec3 col = video(vUv);
-  vec2 L = normalize(vec2(-0.55, 0.83));
   for (int i = 0; i < 6; i++) {
     vec4 P = uP[i];
     if (P.y < 0.004) continue;
     vec4 R = uRect[i];
-    vec2 n;
-    float d = sdRR(p, R.xy, R.zw, P.x, n);
+    float d = sdRR(p, R.xy, R.zw, P.x);
 
     // Soft shadow beneath the pane (outside it only).
     if (P.w > 0.0 && d > 0.0) {
-      vec2 n2;
-      float ds = sdRR(p, R.xy - vec2(0.0, 7.0 * uPx), R.zw - vec2(2.0 * uPx), P.x, n2);
-      float sh = 1.0 - smoothstep(-6.0 * uPx, 26.0 * uPx, ds);
+      float ds = sdRR(p, R.xy - vec2(0.0, 6.0 * uPx), R.zw - vec2(2.0 * uPx), P.x);
+      float sh = 1.0 - clamp((ds + 6.0 * uPx) / (30.0 * uPx), 0.0, 1.0);
       col *= 1.0 - sh * sh * P.w * P.y;
     }
     if (d > 1.5) continue;
 
-    float cover = clamp(0.5 - d, 0.0, 1.0) * P.y;
-    float e = max(-d, 0.0);
-    float W = min(P.x * 1.25, min(R.z, R.w) * 0.85);
-    float t = clamp(1.0 - e / W, 0.0, 1.0);
-    // Circular lens profile: flat in the middle, bending harder and harder toward the rim.
-    float bend = 1.0 - sqrt(max(1.0 - t * t, 0.0));
-
-    // Lens edge: near the rim, the pane pulls in the scene from just outside itself.
-    vec2 off = n * bend * W;
-    vec2 uv = (p + off) / uRes;
-    vec2 ca = n * bend * 3.0 * uPx / uRes;                 // a hint of colour fringing at the edge
-    vec3 sharp = vec3(video(uv + ca).r, video(uv).g, video(uv - ca).b);
-    vec3 soft = vec3(texture2D(uBlur, uv + ca * 2.0).r, texture2D(uBlur, uv).g, texture2D(uBlur, uv - ca * 2.0).b);
-    float frost = P.z * (1.0 - 0.6 * t);                    // the bent rim stays clearer than the middle
-    vec3 g = mix(sharp, soft, frost);
-
-    // Vibrancy: glass keeps the colours behind it rich rather than greying them.
+    // Frosted glass: the scene behind, heavily blurred, gently toned for legibility.
+    vec3 g = texture2D(uBlur, vUv).rgb;
     float lum = dot(g, vec3(0.299, 0.587, 0.114));
-    g = mix(vec3(lum), g, 1.35);
+    g = mix(vec3(lum), g, 1.15);
     lum = dot(g, vec3(0.299, 0.587, 0.114));
+    // position inside the pane: u left→right, v top→bottom
+    float u = (p.x - (R.x - R.z)) / (2.0 * R.z);
+    float v = ((R.y + R.w) - p.y) / (2.0 * R.w);
+    float sheen = pow(clamp(1.0 - (u * 0.6 + v), 0.0, 1.0), 2.0);
+    float k = clamp((u + v) * 0.5, 0.0, 1.0);
+    vec3 b;   // border strength: top-left, middle, bottom-right
     if (uDark > 0.5) {
-      // darker glass; very bright scenes roll off gently so white text always reads
-      g = g * 0.66 + vec3(0.010, 0.012, 0.030);
-      float l2 = lum * 0.66 + 0.001;
-      g *= (0.5 * (1.0 - exp(-l2 / 0.5))) / l2;
+      g *= 0.80;
+      float l2 = lum * 0.80 + 0.001;
+      g *= (0.58 * (1.0 - exp(-l2 / 0.58))) / l2;   // very bright scenes roll off so white text reads
+      g += vec3(0.06) + sheen * 0.10;
+      b = vec3(0.55, 0.12, 0.30);
     } else {
-      // lighter glass; dark scenes are lifted just enough for dark text to read
-      g = g * 0.76 + vec3(0.26);
-      float l2 = lum * 0.76 + 0.24;
-      g += vec3(0.8 * max(0.0, 0.66 - l2));
+      g = g * 0.84 + vec3(0.16);
+      float l2 = lum * 0.84 + 0.16;
+      g += vec3(0.8 * max(0.0, 0.62 - l2));         // dark scenes are lifted so dark text reads
+      g += sheen * 0.16;
+      b = vec3(0.85, 0.30, 0.55);
     }
+    // Hairline border, brightest at the top-left, catching the light again at the bottom-right.
+    float e = max(-d, 0.0);
+    float rim = 1.0 - clamp((e - 0.3 * uPx) / (1.0 * uPx), 0.0, 1.0);
+    float ba = k < 0.5 ? mix(b.x, b.y, k / 0.5) : mix(b.y, b.z, (k - 0.5) / 0.5);
+    g = mix(g, vec3(1.0), rim * ba);
 
-    // Light: a crisp rim lit from the top-left (softer kick at the bottom-right), a broad
-    // specular band inside the lit edge, and a gentle glow in the curved lip.
-    float lit = dot(n, L);
-    float key = pow(max(lit, 0.0), 1.4);
-    float kick = pow(max(-lit, 0.0), 1.8);
-    float rim = 1.0 - smoothstep(0.35 * uPx, 1.7 * uPx, e);
-    float lip = t * t;
-    float band = pow(clamp(1.0 - e / (W * 0.5), 0.0, 1.0), 2.0) * pow(max(lit, 0.0), 3.5);
-    float hi = (uDark > 0.5) ? 1.0 : 0.85;
-    g += rim * (0.06 + 0.95 * key + 0.50 * kick) * hi;
-    g += lip * (0.03 + 0.18 * key + 0.08 * kick) * hi;
-    g += band * 0.30 * hi;
-    // a faint inner shade on the side away from the light gives the pane thickness
-    g -= lip * 0.08 * max(-lit, 0.0) * (uDark > 0.5 ? 1.0 : 0.4);
-
+    float cover = clamp(0.5 - d, 0.0, 1.0) * P.y;
     col = mix(col, clamp(g, 0.0, 1.0), cover);
   }
   gl_FragColor = vec4(col, 1.0);
