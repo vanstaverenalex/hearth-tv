@@ -3,6 +3,7 @@ package com.vanstaveren.hearthtv
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.net.Uri

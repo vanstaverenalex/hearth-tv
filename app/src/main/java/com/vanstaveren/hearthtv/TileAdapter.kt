@@ -28,6 +28,7 @@ class TileAdapter(
         set(v) { if (field != v) { field = v; notifyDataSetChanged() } }
 
     var dark = true
+        set(v) { field = v; notifyDataSetChanged() }
 
     /** True while the GPU draws the frosted cards' glass (their border included). */
     var gpuGlass = false
@@ -35,7 +36,6 @@ class TileAdapter(
 
     private fun rimFor(card: View, focused: Boolean) =
         if (gpuGlass && card.tag == GLASS_TAG && !focused) null else rimDrawable(card.context, radiusDp, focused, dark)
-        set(v) { field = v; notifyDataSetChanged() }
 
     var items: List<AppEntry> = emptyList()
         set(v) { field = v; notifyDataSetChanged() }
