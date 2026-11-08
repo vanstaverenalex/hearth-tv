@@ -1,61 +1,86 @@
 {
- "_about": "Live backgrounds for Hearth TV: bright, happy, slow-moving 4K scenes (no time-lapses). A GitHub Action turns each Pexels source into a seamless 4K loop and uploads it to the 'backgrounds' release as <id>.mp4 (+ <id>.jpg preview). The TV shuffles through all of them; the skip button in the light/dark pill moves to the next. All sources are free under the Pexels license. Bump 'v' on a clip to re-encode it.",
+ "_about": "Live backgrounds for Hearth TV: calm 4K landscapes and nature scenes, played at half speed (no time-lapses). A GitHub Action turns each Pexels source into a seamless 4K loop and uploads it to the 'backgrounds' release as <id>.mp4 (+ <id>.jpg preview). The TV shuffles through all of them; the skip button in the light/dark pill moves to the next. All sources are free under the Pexels license. Bump 'v' on a clip to re-encode it.",
  "release": "https://github.com/vanstaverenalex/hearth-tv/releases/download/backgrounds/",
  "clips": [
   {
-   "id": "blossoms-blue-sky",
-   "v": 2,
-   "src": "https://videos.pexels.com/video-files/31824282/13558377_3840_2160_24fps.mp4"
-  },
-  {
-   "id": "blossom-branches",
-   "v": 2,
-   "src": "https://videos.pexels.com/video-files/11526128/11526128-uhd_3840_2160_30fps.mp4"
-  },
-  {
-   "id": "pink-blossom-closeup",
-   "v": 2,
-   "src": "https://videos.pexels.com/video-files/36879125/15622751_3840_2160_30fps.mp4"
+   "id": "alpine-lake-valley",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/34623325/14673675_3840_2160_30fps.mp4"
   },
   {
    "id": "sunlit-reef",
-   "v": 2,
+   "v": 3,
    "src": "https://videos.pexels.com/video-files/34319167/14539046_3840_2160_60fps.mp4"
   },
   {
+   "id": "swiss-alps-lake",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/32873553/14011499_3840_2160_24fps.mp4"
+  },
+  {
    "id": "sunrays-underwater",
-   "v": 2,
+   "v": 3,
    "src": "https://videos.pexels.com/video-files/40432354/17276626_3840_2160_25fps.mp4"
   },
   {
+   "id": "mountain-lake-calm",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/39827348/16986941_3840_2160_30fps.mp4"
+  },
+  {
    "id": "blue-light-rays",
-   "v": 2,
+   "v": 3,
    "src": "https://videos.pexels.com/video-files/32790667/13977647_3840_2160_60fps.mp4"
   },
   {
+   "id": "forest-lake-autumn",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/40348503/17239927_3840_2160_30fps.mp4"
+  },
+  {
    "id": "jungle-sunbeams",
-   "v": 2,
+   "v": 3,
    "src": "https://videos.pexels.com/video-files/37218119/15766872_3840_2160_30fps.mp4"
   },
   {
+   "id": "mountain-sea-of-clouds",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/5903753/5903753-uhd_3840_2160_24fps.mp4"
+  },
+  {
    "id": "oak-breeze",
-   "v": 2,
+   "v": 3,
    "src": "https://videos.pexels.com/video-files/36482293/15469402_3840_2160_60fps.mp4"
   },
   {
-   "id": "cosmos-breeze",
-   "v": 2,
-   "src": "https://videos.pexels.com/video-files/14215805/14215805-uhd_3840_2160_30fps.mp4"
-  },
-  {
-   "id": "spring-blossoms",
-   "v": 2,
-   "src": "https://videos.pexels.com/video-files/36722594/15563732_3840_2160_30fps.mp4"
+   "id": "clouds-over-ridge",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/12078525/12078525-uhd_3840_2160_30fps.mp4"
   },
   {
    "id": "koi-pond",
-   "v": 2,
+   "v": 3,
    "src": "https://videos.pexels.com/video-files/32102283/13686674_3840_2160_24fps.mp4"
+  },
+  {
+   "id": "sea-of-clouds",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/5721853/5721853-uhd_3840_2160_30fps.mp4"
+  },
+  {
+   "id": "tropical-island",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/13330454/13330454-uhd_3840_2160_60fps.mp4"
+  },
+  {
+   "id": "snowy-alps",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/34765999/14738970_3840_2160_30fps.mp4"
+  },
+  {
+   "id": "white-cliffs",
+   "v": 1,
+   "src": "https://videos.pexels.com/video-files/29779432/12795983_3840_2160_30fps.mp4"
   }
  ]
 }
