@@ -8,7 +8,6 @@ import android.opengl.GLSurfaceView
 import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
-import android.view.WindowManager
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -19,7 +18,7 @@ import javax.microedition.khronos.opengles.GL10
  * The live background, drawn with OpenGL so the home screen's glass panes are real frosted glass:
  * the moving scene shows through each pane deeply blurred, gently toned so text stays readable,
  * with a soft sheen in the top-left, a hairline border that catches the light at the top-left and
- * bottom-right, and a soft shadow underneath. Video and glass are drawn at the panel's own resolution (4K).
+ * bottom-right, and a soft shadow underneath. Drawn at the UI's 1080p so the TV stays smooth.
  *
  * If the glass shader can't be built on a TV, the video still plays (plain pass-through) and
  * [onGlassFailed] lets the UI fall back to drawn glass.
@@ -66,13 +65,7 @@ class GlassScene(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         setEGLConfigChooser(8, 8, 8, 8, 0, 0)
         setRenderer(this)
         renderMode = RENDERMODE_WHEN_DIRTY
-        // Draw at the panel's real resolution (the app's UI is 1080p; the TV panel is 4K).
-        try {
-            @Suppress("DEPRECATION")
-            val mode = (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.mode
-            val w = minOf(mode.physicalWidth, 3840); val h = minOf(mode.physicalHeight, 2160)
-            if (w > 1920 && h > 1080) holder.setFixedSize(w, h)
-        } catch (_: Exception) {}
+        // The GL layer renders at the UI's 1080p: at 4K the TV's GPU couldn't keep the UI smooth.
     }
 
     fun setPanels(list: List<Panel>) { if (list != panels) { panels = list; requestRender() } }
@@ -98,7 +91,8 @@ class GlassScene(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         try { t?.release() } catch (_: Exception) {}
     }
 
-    override fun onFrameAvailable(surfaceTexture: SurfaceTexture?) = requestRender()
+    @Volatile private var freshFrame = true
+    override fun onFrameAvailable(surfaceTexture: SurfaceTexture?) { freshFrame = true; requestRender() }
 
     // ---------------------------------------------------------------- GL thread
 
@@ -125,7 +119,8 @@ class GlassScene(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         progPlain = program(VERT, FRAG_PLAIN)
         progDown = program(VERT, FRAG_DOWN)
         progBlur = program(VERT, FRAG_BLUR)
-        progGlass = program(VERT, FRAG_GLASS)
+        progGlass = program(VERT_BOX, FRAG_PANE)
+        blurValid = false
         if (progDown == 0 || progBlur == 0 || progGlass == 0) {
             if (glassOk) { glassOk = false; post { onGlassFailed?.invoke() } }
         } else {
@@ -153,87 +148,72 @@ class GlassScene(context: Context) : GLSurfaceView(context), GLSurfaceView.Rende
         Log.i(TAG, "glass surface ${width}x$height, glass=${glassOk}")
     }
 
-    private var lastTs = 0L
-    private var frames = 0
-    private var late = 0
-    private var downgraded = false
+    private var blurValid = false
 
     override fun onDrawFrame(gl: GL10?) {
         val texture = st ?: return
-        try { texture.updateTexImage(); texture.getTransformMatrix(stMat) } catch (_: Exception) {}
-        watchFrameRate(texture.timestamp)
+        val fresh = freshFrame
+        freshFrame = false
+        if (fresh) try { texture.updateTexImage(); texture.getTransformMatrix(stMat) } catch (_: Exception) {}
 
         // Cover-crop the video to the screen.
         val va = videoW.toFloat() / videoH; val sa = bufW.toFloat() / bufH
         val cx = if (va > sa) sa / va else 1f
         val cy = if (va > sa) 1f else va / sa
 
-        val ps = panels.filter { it.alpha > 0.004f }
-        if (!glassOk || ps.isEmpty()) {
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
-            GLES20.glViewport(0, 0, bufW, bufH)
-            use(progPlain); bindVideo(progPlain, cx, cy)
-            draw(progPlain)
-            return
-        }
-
-        // 1) video → 960×540, 2) blur at 480×270 (three rounds), all in screen space.
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo[0]); GLES20.glViewport(0, 0, fboW[0], fboH[0])
-        use(progDown); bindVideo(progDown, cx, cy)
-        GLES20.glUniform2f(GLES20.glGetUniformLocation(progDown, "uStep"), 0.5f / fboW[0], 0.5f / fboH[0])
-        draw(progDown)
-        blur(fboTex[0], fbo[1], 2f / fboW[0], 0f)
-        blur(fboTex[1], fbo[2], 0f, 1f / fboH[1])
-        blur(fboTex[2], fbo[1], 1.6f / fboW[1], 0f)
-        blur(fboTex[1], fbo[2], 0f, 1.6f / fboH[1])
-        blur(fboTex[2], fbo[1], 2.4f / fboW[1], 0f)        // a third round: a deep, creamy frost
-        blur(fboTex[1], fbo[2], 0f, 2.4f / fboH[1])
-
-        // 3) the screen: video, with each pane of glass on top
+        // 1) the video, full screen (one texture read per pixel)
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
         GLES20.glViewport(0, 0, bufW, bufH)
-        use(progGlass); bindVideo(progGlass, cx, cy)
+        GLES20.glDisable(GLES20.GL_BLEND)
+        use(progPlain); bindVideo(progPlain, cx, cy)
+        draw(progPlain)
+
+        val ps = panels.filter { it.alpha > 0.004f }.take(MAX)
+        if (!glassOk || ps.isEmpty()) return
+
+        // 2) a small blurred copy of the frame (only when the video moved on)
+        if (fresh || !blurValid) {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo[0]); GLES20.glViewport(0, 0, fboW[0], fboH[0])
+            use(progDown); bindVideo(progDown, cx, cy)
+            GLES20.glUniform2f(GLES20.glGetUniformLocation(progDown, "uStep"), 0.5f / fboW[0], 0.5f / fboH[0])
+            draw(progDown)
+            blur(fboTex[0], fbo[1], 2f / fboW[0], 0f)
+            blur(fboTex[1], fbo[2], 0f, 1f / fboH[1])
+            blur(fboTex[2], fbo[1], 1.6f / fboW[1], 0f)
+            blur(fboTex[1], fbo[2], 0f, 1.6f / fboH[1])
+            blur(fboTex[2], fbo[1], 2.4f / fboW[1], 0f)        // a third round: a deep, creamy frost
+            blur(fboTex[1], fbo[2], 0f, 2.4f / fboH[1])
+            blurValid = true
+        }
+
+        // 3) each pane: drawn only over its own area (plus room for its shadow), blended on top
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+        GLES20.glViewport(0, 0, bufW, bufH)
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        use(progGlass)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE1)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, fboTex[2])
         GLES20.glUniform1i(GLES20.glGetUniformLocation(progGlass, "uBlur"), 1)
         GLES20.glUniform2f(GLES20.glGetUniformLocation(progGlass, "uRes"), bufW.toFloat(), bufH.toFloat())
         val sx = bufW.toFloat() / maxOf(1, width); val sy = bufH.toFloat() / maxOf(1, height)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(progGlass, "uPx"), density * sx)
+        val px = density * sx
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(progGlass, "uPx"), px)
         GLES20.glUniform1f(GLES20.glGetUniformLocation(progGlass, "uDark"), if (dark) 1f else 0f)
-        val rects = FloatArray(4 * MAX); val params = FloatArray(4 * MAX)
-        for ((i, p) in ps.take(MAX).withIndex()) {
-            // view pixels (y down) → buffer pixels (y up), as centre + half size
+        val uRect = GLES20.glGetUniformLocation(progGlass, "uRect")
+        val uP = GLES20.glGetUniformLocation(progGlass, "uP")
+        val uBox = GLES20.glGetUniformLocation(progGlass, "uBox")
+        for (p in ps) {
+            // view pixels (y down) → buffer pixels (y up)
             val l = p.left * sx; val r = p.right * sx
             val t = bufH - p.top * sy; val b = bufH - p.bottom * sy
-            rects[i * 4] = (l + r) / 2; rects[i * 4 + 1] = (t + b) / 2
-            rects[i * 4 + 2] = (r - l) / 2; rects[i * 4 + 3] = (t - b) / 2
-            params[i * 4] = p.radius * sx; params[i * 4 + 1] = p.alpha
-            params[i * 4 + 2] = p.frost; params[i * 4 + 3] = p.shadow
+            GLES20.glUniform4f(uRect, (l + r) / 2, (t + b) / 2, (r - l) / 2, (t - b) / 2)
+            GLES20.glUniform4f(uP, p.radius * sx, p.alpha, p.frost, p.shadow)
+            val m = if (p.shadow > 0f) 40f * px else 2f
+            GLES20.glUniform4f(uBox, (l - m) / bufW * 2 - 1, (b - m) / bufH * 2 - 1, (r + m) / bufW * 2 - 1, (t + m) / bufH * 2 - 1)
+            draw(progGlass)
         }
-        GLES20.glUniform4fv(GLES20.glGetUniformLocation(progGlass, "uRect"), MAX, rects, 0)
-        GLES20.glUniform4fv(GLES20.glGetUniformLocation(progGlass, "uP"), MAX, params, 0)
-        draw(progGlass)
-    }
-
-    /**
-     * If the TV can't keep up at 4K (video frames being skipped), drop the glass layer to 1080p.
-     * The UI is 1080p anyway; this only gives up a little background sharpness.
-     */
-    private fun watchFrameRate(ts: Long) {
-        if (downgraded || bufW <= 1920 || ts == 0L) return
-        if (lastTs != 0L && ts > lastTs) {
-            frames++
-            if (ts - lastTs > 55_000_000L) late++
-            if (frames >= 150) {
-                if (late * 4 > frames) {
-                    downgraded = true
-                    Log.w(TAG, "glass: $late of $frames frames late at ${bufW}x$bufH; switching to 1920x1080")
-                    post { holder.setFixedSize(1920, 1080); Diag.log(context, "glass: dropped to 1080p ($late/$frames late)") }
-                }
-                frames = 0; late = 0
-            }
-        }
-        lastTs = ts
+        GLES20.glDisable(GLES20.GL_BLEND)
     }
 
     private fun blur(src: Int, dst: Int, dx: Float, dy: Float) {
@@ -301,6 +281,16 @@ vec3 video(vec2 uv) {
   return texture2D(uVideo, (uST * vec4(c, 0.0, 1.0)).xy).rgb;
 }
 """
+        private val VERT_BOX = """
+attribute vec2 aPos;
+uniform vec4 uBox;
+varying vec2 vUv;
+void main() {
+  vec2 p = mix(uBox.xy, uBox.zw, aPos * 0.5 + 0.5);
+  vUv = p * 0.5 + 0.5;
+  gl_Position = vec4(p, 0.0, 1.0);
+}
+"""
         private val FRAG_PLAIN = """
 #extension GL_OES_EGL_image_external : require
 precision mediump float;
@@ -332,8 +322,8 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
 }
 """
-        private val FRAG_GLASS = """
-#extension GL_OES_EGL_image_external : require
+        /** One pane of frosted glass; drawn as a quad over the pane, blended over the video. */
+        private val FRAG_PANE = """
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
@@ -344,9 +334,8 @@ uniform sampler2D uBlur;
 uniform vec2 uRes;
 uniform float uPx;
 uniform float uDark;
-uniform vec4 uRect[6];
-uniform vec4 uP[6];
-$VIDEO
+uniform vec4 uRect;
+uniform vec4 uP;
 
 float sdRR(vec2 p, vec2 c, vec2 h, float r) {
   vec2 q = abs(p - c) - h + r;
@@ -355,55 +344,53 @@ float sdRR(vec2 p, vec2 c, vec2 h, float r) {
 
 void main() {
   vec2 p = vUv * uRes;
-  vec3 col = video(vUv);
-  for (int i = 0; i < 6; i++) {
-    vec4 P = uP[i];
-    if (P.y < 0.004) continue;
-    vec4 R = uRect[i];
-    float d = sdRR(p, R.xy, R.zw, P.x);
+  vec4 R = uRect;
+  vec4 P = uP;
+  float d = sdRR(p, R.xy, R.zw, P.x);
 
-    // Soft shadow beneath the pane (outside it only).
-    if (P.w > 0.0 && d > 0.0) {
-      float ds = sdRR(p, R.xy - vec2(0.0, 6.0 * uPx), R.zw - vec2(2.0 * uPx), P.x);
-      float sh = 1.0 - clamp((ds + 6.0 * uPx) / (30.0 * uPx), 0.0, 1.0);
-      col *= 1.0 - sh * sh * P.w * P.y;
-    }
-    if (d > 1.5) continue;
-
-    // Frosted glass: the scene behind, heavily blurred, gently toned for legibility.
-    vec3 g = texture2D(uBlur, vUv).rgb;
-    float lum = dot(g, vec3(0.299, 0.587, 0.114));
-    g = mix(vec3(lum), g, 1.15);
-    lum = dot(g, vec3(0.299, 0.587, 0.114));
-    // position inside the pane: u left→right, v top→bottom
-    float u = (p.x - (R.x - R.z)) / (2.0 * R.z);
-    float v = ((R.y + R.w) - p.y) / (2.0 * R.w);
-    float sheen = pow(clamp(1.0 - (u * 0.6 + v), 0.0, 1.0), 2.0);
-    float k = clamp((u + v) * 0.5, 0.0, 1.0);
-    vec3 b;   // border strength: top-left, middle, bottom-right
-    if (uDark > 0.5) {
-      g *= 0.80;
-      float l2 = lum * 0.80 + 0.001;
-      g *= (0.58 * (1.0 - exp(-l2 / 0.58))) / l2;   // very bright scenes roll off so white text reads
-      g += vec3(0.06) + sheen * 0.10;
-      b = vec3(0.55, 0.12, 0.30);
-    } else {
-      g = g * 0.84 + vec3(0.16);
-      float l2 = lum * 0.84 + 0.16;
-      g += vec3(0.8 * max(0.0, 0.62 - l2));         // dark scenes are lifted so dark text reads
-      g += sheen * 0.16;
-      b = vec3(0.85, 0.30, 0.55);
-    }
-    // Hairline border, brightest at the top-left, catching the light again at the bottom-right.
-    float e = max(-d, 0.0);
-    float rim = 1.0 - clamp((e - 0.3 * uPx) / (1.0 * uPx), 0.0, 1.0);
-    float ba = k < 0.5 ? mix(b.x, b.y, k / 0.5) : mix(b.y, b.z, (k - 0.5) / 0.5);
-    g = mix(g, vec3(1.0), rim * ba);
-
-    float cover = clamp(0.5 - d, 0.0, 1.0) * P.y;
-    col = mix(col, clamp(g, 0.0, 1.0), cover);
+  // Outside the pane: just its soft shadow.
+  if (d > 0.5) {
+    if (P.w <= 0.0) discard;
+    float ds = sdRR(p, R.xy - vec2(0.0, 6.0 * uPx), R.zw - vec2(2.0 * uPx), P.x);
+    float sh = 1.0 - clamp((ds + 6.0 * uPx) / (30.0 * uPx), 0.0, 1.0);
+    float a = sh * sh * P.w * P.y;
+    if (a < 0.002) discard;
+    gl_FragColor = vec4(0.0, 0.0, 0.0, a);
+    return;
   }
-  gl_FragColor = vec4(col, 1.0);
+
+  // Frosted glass: the scene behind, heavily blurred, gently toned for legibility.
+  vec3 g = texture2D(uBlur, vUv).rgb;
+  float lum = dot(g, vec3(0.299, 0.587, 0.114));
+  g = mix(vec3(lum), g, 1.15);
+  lum = dot(g, vec3(0.299, 0.587, 0.114));
+  // position inside the pane: u left→right, v top→bottom
+  float u = (p.x - (R.x - R.z)) / (2.0 * R.z);
+  float v = ((R.y + R.w) - p.y) / (2.0 * R.w);
+  float sheen = pow(clamp(1.0 - (u * 0.6 + v), 0.0, 1.0), 2.0);
+  float k = clamp((u + v) * 0.5, 0.0, 1.0);
+  vec3 b;   // border strength: top-left, middle, bottom-right
+  if (uDark > 0.5) {
+    g *= 0.80;
+    float l2 = lum * 0.80 + 0.001;
+    g *= (0.58 * (1.0 - exp(-l2 / 0.58))) / l2;   // very bright scenes roll off so white text reads
+    g += vec3(0.06) + sheen * 0.10;
+    b = vec3(0.55, 0.12, 0.30);
+  } else {
+    g = g * 0.84 + vec3(0.16);
+    float l2 = lum * 0.84 + 0.16;
+    g += vec3(0.8 * max(0.0, 0.62 - l2));         // dark scenes are lifted so dark text reads
+    g += sheen * 0.16;
+    b = vec3(0.85, 0.30, 0.55);
+  }
+  // Hairline border, brightest at the top-left, catching the light again at the bottom-right.
+  float e = max(-d, 0.0);
+  float rim = 1.0 - clamp((e - 0.3 * uPx) / (1.0 * uPx), 0.0, 1.0);
+  float ba = k < 0.5 ? mix(b.x, b.y, k / 0.5) : mix(b.y, b.z, (k - 0.5) / 0.5);
+  g = mix(g, vec3(1.0), rim * ba);
+
+  float cover = clamp(0.5 - d, 0.0, 1.0) * P.y;
+  gl_FragColor = vec4(clamp(g, 0.0, 1.0), cover);
 }
 """
     }
