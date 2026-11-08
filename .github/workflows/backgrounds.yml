@@ -37,21 +37,38 @@ jobs:
           chmod +x tools/make_loop.sh
           mkdir -p work
           have=$(gh release view backgrounds --json assets --jq '.assets[].name' || true)
+          # Each clip also gets a small, pre-blurred twin (<id>.glass.mp4, 480x270, same frames):
+          # the TV plays it alongside the 4K clip and uses it for the frosted glass, so the 4K
+          # video can stay on the TV's video plane at full quality.
+          glass() {  # $1 = 4K loop, $2 = output
+            ffmpeg -nostdin -hide_banner -loglevel error -y -i "$1" \
+              -vf "scale=480:270:flags=area,gblur=sigma=7:steps=2,format=yuv420p" -an -r 30 \
+              -c:v libx264 -preset veryfast -crf 20 -g 60 -keyint_min 60 -movflags +faststart "$2"
+          }
           jq -c ".clips[]" backgrounds.json | while read -r c; do
             id=$(echo "$c" | jq -r .id); v=$(echo "$c" | jq -r '.v // 1'); src=$(echo "$c" | jq -r .src)
-            name="$id.mp4"; marker="$id.v$v"
-            if echo "$have" | grep -qx "$name" && echo "$have" | grep -qx "$marker"; then
-              echo "✓ $id is up to date"; continue
+            name="$id.mp4"; marker="$id.v$v"; gname="$id.glass.mp4"; gmarker="$id.glass.v$v"
+            main_ok=false; glass_ok=false
+            echo "$have" | grep -qx "$name" && echo "$have" | grep -qx "$marker" && main_ok=true
+            echo "$have" | grep -qx "$gname" && echo "$have" | grep -qx "$gmarker" && glass_ok=true
+            if $main_ok && $glass_ok; then echo "✓ $id is up to date"; continue; fi
+            if $main_ok; then
+              echo "▶ $id (glass twin only)"
+              curl -fsSL --retry 3 -o "work/$name" "https://github.com/${{ github.repository }}/releases/download/backgrounds/$name" || { echo "fetch failed: $id"; continue; }
+            else
+              echo "▶ $id"
+              curl -fsSL --retry 3 -A "HearthTV-builder/1.0" -o work/src.mp4 "$src" || { echo "download failed: $id"; continue; }
+              tools/make_loop.sh work/src.mp4 "work/$name" 40 2.5 || { echo "encode failed: $id"; continue; }
+              echo "$id v$v $(date -u +%F)" > "work/$marker"
+              # Small preview frame so the set can be reviewed at a glance.
+              D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "work/$name")
+              ffmpeg -nostdin -hide_banner -loglevel error -y -ss "$(python3 -c "print(float('$D')*0.4)")" -i "work/$name" -frames:v 1 -vf scale=640:-2 "work/$id.jpg"
+              gh release upload backgrounds "work/$name" "work/$marker" "work/$id.jpg" --clobber
             fi
-            echo "▶ $id"
-            curl -fsSL --retry 3 -A "HearthTV-builder/1.0" -o work/src.mp4 "$src" || { echo "download failed: $id"; continue; }
-            tools/make_loop.sh work/src.mp4 "work/$name" 40 2.5 || { echo "encode failed: $id"; continue; }
-            echo "$id v$v $(date -u +%F)" > "work/$marker"
-            # Small preview frame so the set can be reviewed at a glance.
-            D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "work/$name")
-            ffmpeg -nostdin -hide_banner -loglevel error -y -ss "$(python3 -c "print(float('$D')*0.4)")" -i "work/$name" -frames:v 1 -vf scale=640:-2 "work/$id.jpg"
-            gh release upload backgrounds "work/$name" "work/$marker" "work/$id.jpg" --clobber
-            rm -f work/src.mp4 "work/$name" "work/$marker" "work/$id.jpg"
+            glass "work/$name" "work/$gname" || { echo "glass twin failed: $id"; continue; }
+            echo "$id glass v$v $(date -u +%F)" > "work/$gmarker"
+            gh release upload backgrounds "work/$gname" "work/$gmarker" --clobber
+            rm -f work/src.mp4 "work/$name" "work/$marker" "work/$id.jpg" "work/$gname" "work/$gmarker"
           done
 
       - name: Remove clips that are no longer listed
