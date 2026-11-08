@@ -12,7 +12,7 @@ set -euo pipefail
 IN="$1"; OUT="$2"; MAX="${3:-40}"; F="${4:-2.5}"; SPEED="${5:-0.5}"
 
 DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$IN")
-FPS=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$IN")
+FPS=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$IN" | head -1 | tr -d ", ")
 SRCFPS=$(python3 -c "from fractions import Fraction as F; print(float(F('$FPS')))")
 # Frames per second after slowing down; >= 30 means real frames all the way, no blending.
 RETIME=$(python3 -c "
