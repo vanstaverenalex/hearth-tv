@@ -270,12 +270,12 @@ class MainActivity : Activity() {
         clockRow.addView(clockText, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = -dpi(2f) })
         val dayCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.END
-            baselineAlignedChildIndex = 1
         }
         dayText = TextView(this).apply { style(10.5f, Fonts.body(this@MainActivity, 700), Color.WHITE); gravity = Gravity.END }
         dateText = TextView(this).apply { style(10.5f, Fonts.body(this@MainActivity, 600), Color.WHITE); gravity = Gravity.END }
         dayCol.addView(dayText, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.END })
         dayCol.addView(dateText, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.END; topMargin = dpi(2.5f) })
+        dayCol.baselineAlignedChildIndex = 1   // only valid once both lines are added
         clockRow.addView(dayCol, LinearLayout.LayoutParams(-2, -2))
         card.addView(clockRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dpi(9f) })
 
