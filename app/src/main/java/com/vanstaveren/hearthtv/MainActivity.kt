@@ -72,6 +72,9 @@ class MainActivity : Activity() {
     private lateinit var cardGlass: GlassDrawable
     private lateinit var cardRule: View
     private lateinit var weatherRow: LinearLayout
+    private lateinit var placeTag: LinearLayout
+    private lateinit var placeIcon: ImageView
+    private lateinit var placeText: TextView
     private lateinit var santa: SantaSleigh
     private var resumed = false
     private val santaRun = object : Runnable {
@@ -153,6 +156,8 @@ class MainActivity : Activity() {
             for (v in listOf(dock, card)) {
                 v.animate().cancel(); v.visibility = View.VISIBLE; v.alpha = 1f; v.translationY = 0f
             }
+            placeTag.animate().cancel(); placeTag.translationY = 0f
+            if (placeText.text.isNotEmpty()) { placeTag.visibility = View.VISIBLE; placeTag.alpha = 0.92f }
         }
         favRow.scrollToPosition(0)
         focusLive()
@@ -201,6 +206,18 @@ class MainActivity : Activity() {
         // Holiday easter egg: Santa's sleigh across the very top (home screen only)
         santa = SantaSleigh(this)
         root.addView(santa, FrameLayout.LayoutParams(-1, dpi(46f), Gravity.TOP))
+
+        // Where the current scene was filmed, top-right (like Windows Spotlight)
+        placeTag = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; alpha = 0f
+        }
+        placeIcon = ImageView(this).apply { setImageResource(R.drawable.ic_pin) }
+        placeText = TextView(this).apply { style(10.5f, Fonts.body(this@MainActivity, 600), Color.WHITE, 0.01f) }
+        placeTag.addView(placeIcon, LinearLayout.LayoutParams(dpi(11f), dpi(11f)).apply { marginEnd = dpi(5f) })
+        placeTag.addView(placeText)
+        root.addView(placeTag, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END).apply {
+            rightMargin = dpi(EDGE + 4f); topMargin = dpi(30f)
+        })
 
         // ---- One grid for the whole home screen: the info card and the dock share the same
         // 30dp margins, and the card is exactly as wide as the dock's Live TV + Apps pair, so its
@@ -583,6 +600,9 @@ class MainActivity : Activity() {
         weatherIcon.setColorFilter(ink)
         cardGlass.dark = dark
         video.scene.dark = dark
+        val tagInk = if (dark) Color.WHITE else Hearth.INK_DARK
+        placeText.setTextColor(tagInk); placeIcon.setColorFilter(tagInk)
+        placeText.setShadowLayer(dp(6f), 0f, dp(1f), if (dark) Color.argb(150, 0, 0, 0) else Color.argb(200, 255, 255, 255))
         cardRule.setBackgroundColor(inkA(if (dark) 41 else 31))
 
         dockGlass.dark = dark
@@ -653,9 +673,31 @@ class MainActivity : Activity() {
         sceneSince = now
         bgWorker.execute {
             val f = if (advance) Backgrounds.next(this) else Backgrounds.current(this)
-            if (f != null) ui.post { video.play(f) }
+            if (f != null) ui.post { showScene(f) }
             Backgrounds.prefetch(this)
         }
+    }
+
+    /** Play a clip and update the "filmed in" tag to match. */
+    private fun showScene(f: java.io.File) {
+        val same = f == video.current
+        video.play(f)
+        if (same && placeTag.alpha > 0f) return
+        bgWorker.execute {
+            val place = try { Backgrounds.placeOf(this, f) } catch (_: Exception) { null }
+            ui.post { setPlace(place) }
+        }
+    }
+
+    private fun setPlace(place: String?) {
+        placeTag.animate().cancel()
+        placeTag.animate().alpha(0f).setDuration(220).setInterpolator(Ease.inOut).withEndAction {
+            if (place == null) { placeText.text = ""; placeTag.visibility = View.GONE; return@withEndAction }
+            placeText.text = place
+            placeTag.visibility = View.VISIBLE
+            placeTag.animate().alpha(if (overlay == null) 0.92f else 0f).setDuration(700).setStartDelay(500)
+                .setInterpolator(Ease.out).start()
+        }.start()
     }
 
     /** ⏭ in the mode pill: next background right away. */
@@ -665,7 +707,7 @@ class MainActivity : Activity() {
         sceneSince = System.currentTimeMillis()
         bgWorker.execute {
             val f = Backgrounds.next(this)
-            ui.post { skipping = false; if (f != null) video.play(f) }
+            ui.post { skipping = false; if (f != null) showScene(f) }
             Backgrounds.prefetch(this)
         }
     }
@@ -762,7 +804,7 @@ class MainActivity : Activity() {
         overlayDim.visibility = View.VISIBLE
         overlayDim.animate().alpha(1f).setDuration(280).setStartDelay(0).setInterpolator(Ease.out).withLayer().start()
         // The home screen steps back: light/dark switch, clock and dock all hide.
-        for ((v, dy) in listOf(dock to dp(26f), card to -dp(14f))) {
+        for ((v, dy) in listOf(dock to dp(26f), card to -dp(14f), placeTag to -dp(14f))) {
             v.animate().cancel()
             v.animate().alpha(0f).translationY(dy).setDuration(200).setStartDelay(0).setInterpolator(Ease.out).withLayer()
                 .withEndAction { if (overlay != null) v.visibility = View.INVISIBLE }.start()
@@ -785,6 +827,11 @@ class MainActivity : Activity() {
         for (v in listOf(dock, card)) {
             v.animate().cancel(); v.visibility = View.VISIBLE
             v.animate().alpha(1f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).withLayer().start()
+        }
+        placeTag.animate().cancel()
+        if (placeText.text.isNotEmpty()) {
+            placeTag.visibility = View.VISIBLE
+            placeTag.animate().alpha(0.92f).translationY(0f).setDuration(320).setStartDelay(60).setInterpolator(Ease.out).start()
         }
         val btn = if (which == "apps") appsButton else liveButton
         dock.post { btn?.requestFocus() }

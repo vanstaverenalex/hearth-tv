@@ -19,7 +19,7 @@ object Backgrounds {
     private const val KEEP = 5            // clips kept on the TV
     private const val LIST_TTL = 6 * 3600_000L
 
-    data class Clip(val id: String, val version: Int, val url: String)
+    data class Clip(val id: String, val version: Int, val url: String, val place: String? = null)
 
     private var cached: List<Clip> = emptyList()
     private var cachedAt = 0L
@@ -45,11 +45,18 @@ object Backgrounds {
             (0 until arr.length()).map {
                 val o = arr.getJSONObject(it)
                 val id = o.getString("id")
-                Clip(id, o.optInt("v", 1), if (base.isNotBlank()) "$base$id.mp4" else o.optString("url", o.optString("src")))
+                Clip(id, o.optInt("v", 1), if (base.isNotBlank()) "$base$id.mp4" else o.optString("url", o.optString("src")),
+                    o.optString("place", "").ifBlank { null })
             }
         } catch (e: Exception) { Log.w(TAG, "list: ${e.message}"); cached }
         cachedAt = System.currentTimeMillis()
         return cached
+    }
+
+    /** Where a clip on the TV was filmed ("Dolomites, Italy"), when known. Off the main thread. */
+    fun placeOf(ctx: android.content.Context, file: File): String? {
+        val id = file.name.substringBefore(".v")
+        return list(ctx).firstOrNull { it.id == id }?.place
     }
 
     // ---------------------------------------------------------------- playlist
